@@ -1,0 +1,13 @@
+{
+  "config" : {
+    "f1": { "type" :  "string" }
+  },
+  "identifier" : { "name":  "testCNX", "version" :  [1, 0]},
+  "connector": {
+    "classpath": "",
+    "paths" : [],
+    "input": "java.lang.Integer",
+    "output": "java.lang.String",
+    "processClass" : "connectors.loader.Connector1"
+  }
+}
