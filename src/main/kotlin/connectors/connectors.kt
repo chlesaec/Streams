@@ -94,8 +94,9 @@ private constructor(
     class Builder() {
         private val properties = HashMap<String, FieldType>()
 
-        fun add(name : String, prop : FieldType) {
+        fun add(name : String, prop : FieldType) : Builder {
             this.properties[name] = prop
+            return this
         }
 
         fun build(): Fields {

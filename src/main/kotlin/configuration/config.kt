@@ -44,19 +44,23 @@ internal constructor(val values : Map<String, T>,
             Pair(it, this.get(it)!!)
         }
 
-    open class Builder<T, R : Referential<T, R>> {
+    open class Builder<T, R : Referential<T, R>, B : Builder<T, R, B>> {
         protected val properties = mutableMapOf<String, T>()
 
         protected val subs = mutableMapOf<String, R>()
 
-        fun add(name: String, value: T) : Builder<T, R> {
+        fun add(name: String, value: T) : B {
             this.properties.put(name, value)
-            return this
+            return this.self()
         }
 
-        fun addSub(name: String, value : R) : Builder<T, R> {
+        fun addSub(name: String, value : R) : B {
             this.subs.put(name, value)
-            return this
+            return this.self()
+        }
+
+        open fun self() : B {
+            return this as B
         }
 
         open fun build() : Referential<T, R> {
@@ -71,10 +75,14 @@ class Config private constructor(values : Map<String, String>,
                      sub: Map<String, Config>)
        : Referential<String, Config>(values, sub) {
 
-    class Builder : Referential.Builder<String, Config>() {
+    class Builder : Referential.Builder<String, Config, Builder>() {
         override fun build(): Config {
             return Config(HashMap(this.properties),
                 HashMap(this.subs))
+        }
+
+        override fun self() : Config.Builder {
+            return this
         }
     }
 }
