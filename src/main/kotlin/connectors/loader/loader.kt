@@ -2,8 +2,19 @@ package connectors.loader
 
 import configuration.Config
 import connectors.*
+import graph.GraphBuilder
+import graph.NodeBuilder
+import javafx.scene.image.Image
+import javafx.scene.paint.Color
+import job.JobBuilder
+import job.JobConnectorBuilder
+import job.JobLink
 import kotlinx.serialization.json.*
+import ui.ComponentView
+import ui.Coordinate
+import ui.LinkView
 import java.io.File
+import java.lang.RuntimeException
 import java.net.URL
 import java.net.URLClassLoader
 import java.util.*
@@ -89,39 +100,111 @@ class ConfigDescriptionExtractor() {
 
 }
 
-private fun extractConfig(jsonCfg: JsonObject): Config {
-    val builder = Config.Builder()
+class JobLoader {
+    fun loadJob(jsonDesc: JsonObject): JobBuilder {
+        val graph = GraphBuilder<JobConnectorBuilder, JobLink>()
+        val connectors = jsonDesc["connectors"]
+        if (connectors !is JsonArray) {
+            throw RuntimeException("No connectors in job")
+        }
+        val connectorLoader = ConnectorBuilderLoader()
+        val cbuilder: List<NodeBuilder<JobConnectorBuilder, JobLink>> = connectors
+            .filter { it is JsonObject }
+            .map { connectorLoader.loadConnectorBuilder(it.jsonObject) }
+            .filterNotNull()
+            .map { graph.addNode(it) }
+            .toList()
+        val links = jsonDesc["links"]
+        if (links !is JsonArray) {
+            throw RuntimeException("No links in job")
+        }
+        links.forEach {
+            this.addEdge(cbuilder, it)
+        }
+        return JobBuilder(graph)
+    }
 
-    jsonCfg.forEach { k, v: JsonElement ->
-        if (v is JsonObject) {
-            val sub = extractConfig(jsonCfg)
-            builder.addSub(k, sub)
-        } else if (v is JsonPrimitive) {
-            builder.add(k, v.content)
+    private fun addEdge(cbuilder: List<NodeBuilder<JobConnectorBuilder, JobLink>>,
+                        jsonEdge : JsonElement) {
+        if (jsonEdge is JsonObject) {
+            val from = jsonEdge["from"]
+            val to = jsonEdge["to"]
+            if (from is JsonPrimitive && from.isString
+                && to is JsonPrimitive && to.isString) {
+                val connectorFrom : NodeBuilder<JobConnectorBuilder, JobLink>? = cbuilder.find { it.data.identifier == from.content }
+                val connectorTo : NodeBuilder<JobConnectorBuilder, JobLink>? = cbuilder.find { it.data.identifier == to.content }
+                if (connectorFrom is NodeBuilder<JobConnectorBuilder, JobLink>
+                    && connectorTo is NodeBuilder<JobConnectorBuilder, JobLink>) {
+                    connectorFrom.addNext(connectorTo, JobLink(LinkView(Color.BLACK, 3.0)))
+                }
+            }
         }
     }
-    return builder.build()
 }
 
+class ConnectorBuilderLoader() {
 
-fun loadConnector(jsonDesc: JsonObject): ConnectorDesc {
-    val cfg: JsonElement? = jsonDesc["config"]
-    val configCnx: ConfigDescription = if (cfg is JsonObject) {
-        ConfigDescriptionExtractor().extract(cfg)
-    } else {
-        ConfigDescription(ComposedType(Fields.Builder().build()))
+    fun loadConnectorBuilder(jsonDesc: JsonObject): JobConnectorBuilder? {
+        val cfg: JsonElement? = jsonDesc["config"]
+        val config: Config.Builder? = if (cfg is JsonObject) {
+            extractConfig(cfg)
+        } else {
+            null
+        }
+        val jobConnector = loadConnector(jsonDesc)
+        if (config == null || jobConnector == null) {
+            return null
+        }
+
+        val view = loadView(jsonDesc) ?: ComponentView(Coordinate(0.0, 0.0))
+
+        val name: JsonElement? = jsonDesc["name"]
+        val identifier: JsonElement? = jsonDesc["identifier"]
+        if (name is JsonPrimitive && name.isString
+            && identifier is JsonPrimitive && identifier.isString) {
+            return JobConnectorBuilder(name.content, identifier.content, jobConnector, config, view)
+        }
+        return null
     }
 
-    val identifier = jsonDesc["identifier"]
-    if (identifier !is JsonObject) {
-        throw IllegalStateException("")
+    private fun extractConfig(jsonCfg: JsonObject): Config.Builder {
+        val builder = Config.Builder()
+
+        jsonCfg.forEach { k, v: JsonElement ->
+            if (v is JsonObject) {
+                val sub = extractConfig(v)
+                builder.addSub(k, sub)
+            } else if (v is JsonPrimitive) {
+                builder.add(k, v.content)
+            }
+        }
+        return builder
     }
-    val name = identifier["name"]
-    val versionArray = identifier["version"]
-    if (name !is JsonPrimitive || versionArray !is JsonArray) {
-        throw IllegalStateException("")
+
+    private fun loadView(viewDesc: JsonObject): ComponentView? {
+        val pos = viewDesc["position"]
+        val position: Coordinate = if (pos is JsonObject) {
+            val x: Double = pos["x"]?.jsonPrimitive?.double ?: 0.0
+            val y: Double = pos["y"]?.jsonPrimitive?.double ?: 0.0
+            Coordinate(x, y)
+        } else {
+            Coordinate(0.0, 0.0)
+        }
+
+        return ComponentView(position)
     }
-    val versions = versionArray
+
+    private fun loadConnector(jsonDesc: JsonObject): ConnectorDesc? {
+        val identifier = jsonDesc["connector"]
+        if (identifier !is JsonObject) {
+            throw IllegalStateException("")
+        }
+        val name = identifier["name"]
+        val versionArray = identifier["version"]
+        if (name !is JsonPrimitive || versionArray !is JsonArray) {
+            throw IllegalStateException("")
+        }
+        val versions = versionArray
             .map {
                 if (it is JsonPrimitive) {
                     it.intOrNull
@@ -130,50 +213,9 @@ fun loadConnector(jsonDesc: JsonObject): ConnectorDesc {
                 }
             }
             .filterNotNull()
-            .toIntArray()
-    val version = VersionedIdentifier(name.content, Version(versions))
+            .toList()
 
-    val connec = jsonDesc["connector"]
-    if (connec !is JsonObject) {
-        throw IllegalStateException("")
+        return Connectors.get(name.content, Version(versions))
     }
-    val cp = connec["classpath"]
-    val paths = connec["paths"]
-
-    if (cp !is JsonPrimitive || paths !is JsonArray) {
-        throw IllegalStateException("")
-    }
-    val pathsFile: List<String> = paths.filterIsInstance(JsonPrimitive::class.java)
-            .map(JsonPrimitive::content)
-    val urls = pathsFile.map { fileName: String -> File(fileName).toURI().toURL() }
-    val classReference = ClassReference(cp.content, urls.toTypedArray())
-
-    val input = connec["input"]
-    val outputCnx = connec["output"]
-    if (input !is JsonPrimitive || outputCnx !is JsonPrimitive) {
-        throw IllegalStateException("")
-    }
-    val inputType: KClass<Any> = classReference.find(input.content)
-    val outputType: KClass<Any> = classReference.find(outputCnx.content)
-
-    val processClassName = connec["processClass"]
-    if (processClassName !is JsonPrimitive) {
-        throw IllegalStateException("")
-    }
-    val kClassConn: KClass<Connector> = Connector::class
-    val invariantInput = KTypeProjection.invariant(inputType.createType())
-    val invariantOutput = KTypeProjection.invariant(outputType.createType())
-
-    val createType: KType = kClassConn.createType()
-
-    val processClass: KClass<Connector> = classReference.find<Connector>(processClassName.content)
-
-    return ConnectorDesc(
-            identifier = version,
-            intput = Link(inputType),
-            output = Link(outputType),
-            config = configCnx,
-            processClass
-    )
 
 }

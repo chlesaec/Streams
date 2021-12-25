@@ -1,13 +1,16 @@
 {
+  "name" : "testCnx1",
+  "identifier" : "1",
   "config" : {
-    "f1": { "type" :  "string" }
+    "f1": {
+      "field1" :  "value1",
+      "field2" : 31
+    },
+    "pi" : 3.14
   },
-  "identifier" : { "name":  "testCNX", "version" :  [1, 0]},
-  "connector": {
-    "classpath": "",
-    "paths" : [],
-    "input": "java.lang.Integer",
-    "output": "java.lang.String",
-    "processClass" : "connectors.loader.Connector1"
+  "connector" : { "name":  "testCNX", "version" :  [1, 0]},
+  "position": {
+    "x": 123.5,
+    "y" : 34.0
   }
 }

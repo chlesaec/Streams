@@ -47,25 +47,52 @@ internal constructor(val values : Map<String, T>,
     open class Builder<T, R : Referential<T, R>, B : Builder<T, R, B>> {
         protected val properties = mutableMapOf<String, T>()
 
-        protected val subs = mutableMapOf<String, R>()
+        protected val subs = mutableMapOf<String, B>()
 
         fun add(name: String, value: T) : B {
-            this.properties.put(name, value)
+            this.properties[name] = value
             return this.self()
         }
 
-        fun addSub(name: String, value : R) : B {
+        fun get(name: String) : T? {
+            return this.properties[name]
+        }
+
+        fun addSub(name: String, value : B) : B {
             this.subs.put(name, value)
-            return this.self()
+            return value
+        }
+
+        fun getSub(name: String) : B? {
+            return this.subs[name]
         }
 
         open fun self() : B {
             return this as B
         }
 
-        open fun build() : Referential<T, R> {
-            return Referential<T, R>(HashMap(this.properties),
-                HashMap(this.subs))
+        open fun build() : R {
+            val subRef : Map<String, R> = this.subs.entries
+                .associate { it.key to it.value.build() }
+
+            val ref = Referential(HashMap(this.properties), subRef)
+            return ref as R
+        }
+    }
+
+    open fun <B : Builder<T, R, B>> toBuilder() : B {
+        val builder = Referential.Builder<T, R, B>() as B
+        this.toBuilder(builder)
+        return builder
+    }
+
+    protected fun <B : Builder<T, R, B>> toBuilder(builder : B) {
+        this.values.forEach {
+            builder.add(it.key, it.value)
+        }
+        this.sub.forEach {
+            val builder = it.value.toBuilder<B>()
+            builder.addSub(it.key, builder)
         }
     }
 }
@@ -77,12 +104,20 @@ class Config private constructor(values : Map<String, String>,
 
     class Builder : Referential.Builder<String, Config, Builder>() {
         override fun build(): Config {
-            return Config(HashMap(this.properties),
-                HashMap(this.subs))
+            val subRef : Map<String, Config> = this.subs.entries
+                .associate { it.key to it.value.build() }
+
+            return Config(HashMap(this.properties), subRef)
         }
 
-        override fun self() : Config.Builder {
+        override fun self() : Builder {
             return this
         }
+    }
+
+    override fun <B : Referential.Builder<String, Config, B>> toBuilder(): B {
+        val builder = Builder()
+        this.toBuilder(builder)
+        return builder as B
     }
 }

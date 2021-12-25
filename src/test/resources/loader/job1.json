@@ -1,0 +1,45 @@
+{
+
+  "connectors" : [
+    {
+      "name" : "testCnx1",
+      "identifier" : "1",
+      "config" : {
+        "field1" :  "value1",
+        "pi" : 3.14
+      },
+      "connector" : { "name":  "testCNX", "version" :  [1, 0]},
+      "position": {  "x": 10.5,  "y" : 34.0 }
+    },
+    {
+      "name" : "testCnx2",
+      "identifier" : "2",
+      "config" : {
+        "f1": {
+          "field1" :  "value1",
+          "field2" : 31
+        },
+        "pi" : 3.14
+      },
+      "connector" : { "name":  "testCNX", "version" :  [1, 0]},
+      "position": { "x": 103.5, "y" : 234.0 }
+    },
+    {
+      "name" : "testCnx3",
+      "identifier" : "3",
+      "config" : {
+        "f1": {
+          "field1" :  "value1",
+          "field2" : 31
+        },
+        "pi" : 3.14
+      },
+      "connector" : { "name":  "testCNX", "version" :  [1, 0]},
+      "position": { "x": 123.5, "y" : 34.0 }
+    }
+  ],
+  "links" : [
+    { "from" :  "1",  "to" :  "2" },
+    { "from" :  "2",  "to" :  "3" }
+  ]
+}

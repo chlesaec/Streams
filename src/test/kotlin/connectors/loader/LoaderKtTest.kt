@@ -1,11 +1,10 @@
 package connectors.loader
 
 import configuration.Config
-import configuration.Referential
-import connectors.ConfigDescription
-import connectors.ConnectorDesc
-import connectors.FieldType
-import connectors.SimpleType
+import connectors.*
+import javafx.scene.image.Image
+import job.JobBuilder
+import job.JobConnectorBuilder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -13,7 +12,6 @@ import kotlinx.serialization.json.jsonObject
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import java.net.URL
-import java.nio.file.Files
 import kotlin.reflect.KClass
 import kotlin.reflect.full.createInstance
 
@@ -67,21 +65,55 @@ class LoaderKtTest {
 
     }
 
+    init {
+      val desc = ConnectorDesc(
+          VersionedIdentifier("testCNX", Version(listOf(1, 0))),
+          Link(Int::class),
+          Link(Nothing::class),
+          ConfigDescription(ComposedType(Fields.Builder().build())),
+          { Image("file:" + Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
+      ) { c: Config -> FakeConnector(c) }
+      Connectors.register(desc)
+    }
+
     @Test
-    fun loadConnector() {
-        val resource: URL? = Thread.currentThread().contextClassLoader.getResource("./loader/connector1.json")
+    fun loadJob() {
+        val resource: URL? = Thread.currentThread().contextClassLoader.getResource("./loader/job1.json")
         if (resource == null) {
             throw RuntimeException("file not exists")
         }
         val content : String = resource.readText()
 
-        val jsonCfg: JsonElement = Json.parseToJsonElement(content)
-        val loadConnector: ConnectorDesc = connectors.loader.loadConnector(jsonCfg.jsonObject)
-        Assertions.assertEquals("testCNX", loadConnector.identifier.name)
+        val jsonJob: JsonElement = Json.parseToJsonElement(content)
+        val loader = JobLoader()
+        val builder : JobBuilder = loader.loadJob(jsonJob.jsonObject)
+        Assertions.assertEquals(3, builder.graph.nodes().size)
+        val job = builder.build()
+        Assertions.assertEquals(2, job.graph.edges.size)
+    }
 
-        val config = Config.Builder().build()
-        val build = loadConnector.build(config)
+    @Test
+    fun loadConnector() {
+        val resource: URL? = Thread.currentThread().contextClassLoader.getResource("./loader/connector1.json")
+        if (resource != null) {
+            val content : String = resource.readText()
 
-        Assertions.assertTrue(build is Connector1);
+            val jsonJob: JsonElement = Json.parseToJsonElement(content)
+            val loader = ConnectorBuilderLoader()
+
+            val jobBuilder = loader.loadConnectorBuilder(jsonJob.jsonObject)
+
+            Assertions.assertTrue(jobBuilder is JobConnectorBuilder)
+            Assertions.assertEquals("testCnx1", jobBuilder?.name)
+            Assertions.assertEquals("1", jobBuilder?.identifier)
+            return
+        }
+        throw RuntimeException("file not exists")
+    }
+}
+
+class FakeConnector(config : Config) : Connector(config) {
+    override fun run(input: Any?, output: (Any?) -> Unit) {
+        output(input)
     }
 }

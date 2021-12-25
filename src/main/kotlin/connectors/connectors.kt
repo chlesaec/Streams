@@ -2,13 +2,13 @@ package connectors
 
 import configuration.Config
 import functions.FunctionConsumer
+import javafx.scene.image.Image
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import java.lang.IllegalStateException
+import java.util.*
+import kotlin.collections.HashMap
 import kotlin.reflect.KClass
-import kotlin.reflect.KFunction
-import kotlin.reflect.KParameter
 import kotlin.reflect.full.isSubclassOf
 
 sealed class Result {
@@ -27,16 +27,13 @@ class Error(val reason: String) : Result() {
     }
 }
 
-class Link(val linkType : KClass<Any>) {
+class Link(val linkType : KClass<out Any>) {
     fun canSucceed(prec: Link): Boolean {
         return prec.linkType.isSubclassOf(this.linkType)
     }
 
     fun canPreced(prec: Link): Boolean = prec.canSucceed(this)
 }
-
-
-
 
 interface Constraint<T> {
     fun valid(value: T): Result
@@ -148,7 +145,7 @@ class ConfigDescription(val description: ComposedType) {
     }
 }
 
-data class Version(val v: IntArray)
+data class Version(val v: List<Int>)
 
 data class VersionedIdentifier(
     val name: String,
@@ -162,35 +159,15 @@ open class ConnectorDesc(
     val intput: Link,
     val output: Link,
     val config: ConfigDescription,
-    val k: KClass<Connector>
+    val icon : () -> Image,
+    val builder : (Config) -> Connector
 ) {
 
     fun build(c: Config): FunctionConsumer {
         if (!this.config.isCompliant(c)) {
             throw IllegalStateException("config not compliant")
         }
-        val connectors = k.constructors.map { cs: KFunction<Connector> ->
-
-            var cnx: Connector? = null
-            val params: List<KParameter> = cs.parameters
-
-            if (params.size == 2) {
-                val p1: KParameter = params[0]
-                val p2: KParameter = params[1]
-                if (p1.type.classifier == Config::class &&
-                    p2.type.classifier == ConnectorDesc::class
-                ) {
-                    val conn: Connector = cs.call(c, this)
-                    cnx = conn as Connector
-                }
-            }
-
-            cnx
-        }
-        if (!connectors.isEmpty()) {
-            return connectors[0]!!
-        }
-        throw RuntimeException("no connectors")
+        return this.builder(c)
     }
 
     fun canSucceed(prec : ConnectorDesc) {
@@ -200,16 +177,28 @@ open class ConnectorDesc(
 
 
 abstract class Connector(
-    val config: Config,
-    val desc: ConnectorDesc
+    val config: Config
 ) : FunctionConsumer {
 
 }
 
-class Connectors {
-    private val connectors = HashMap<String, HashMap<Version, Connector>>()
+object Connectors {
+    private val connectors = HashMap<String, HashMap<Version, ConnectorDesc>>()
 
-    fun get(name: String, version: Version) :  Connector? {
+    fun get(name: String, version: Version): ConnectorDesc? {
         return this.connectors[name]?.get(version)
+    }
+
+    fun register(connectorDesc: ConnectorDesc) {
+        val name : String = connectorDesc.identifier.name
+        val version : Version = connectorDesc.identifier.version
+        this.connectors.compute(name)
+        { _: String, m: HashMap<Version, ConnectorDesc>? ->
+            val map: HashMap<Version, ConnectorDesc> =
+                if (m == null) HashMap()
+                else m
+            map[version] = connectorDesc
+            map
+        }
     }
 }

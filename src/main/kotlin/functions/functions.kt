@@ -7,6 +7,9 @@ import kotlinx.coroutines.launch
 interface FunctionConsumer {
     fun run(input : Any?, output : (Any?) -> Unit)
 }
+object DoNothingFunction : FunctionConsumer {
+    override fun run(input : Any?, output : (Any?) -> Unit) {}
+}
 
 open class ChainedConsumers(val f1 : FunctionConsumer,
                             val f2 : FunctionConsumer)
