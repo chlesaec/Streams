@@ -102,6 +102,12 @@ class GraphBuilder<T, U>() {
 
     fun nodes() : List<T> = this.nodeBuilders.toList().map { it.data }
 
+    fun edges() : List<Pair<NodeBuilder<T, U>, EdgeBuilder<T, U>>> {
+        return this.nodeBuilders.flatMap { n: NodeBuilder<T, U> ->
+            n.nexts.map { e : EdgeBuilder<T, U> -> Pair(n ,e) }
+        }
+    }
+
     fun build() : Graph<T, U> {
         val nodes : Map<UUID, Node<T, U>> = this.nodeBuilders.map { it.build() } //
             .map { it.identifier to it } //

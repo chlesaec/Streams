@@ -18,6 +18,7 @@ import java.lang.RuntimeException
 import java.net.URL
 import java.net.URLClassLoader
 import java.util.*
+import kotlin.collections.HashMap
 import kotlin.jvm.internal.Reflection
 import kotlin.reflect.*
 import kotlin.reflect.full.createType
@@ -216,6 +217,92 @@ class ConnectorBuilderLoader() {
             .toList()
 
         return Connectors.get(name.content, Version(versions))
+    }
+
+}
+
+class JobSaver() {
+    fun saveJob(job : JobBuilder)  : JsonObject {
+
+        // connectors
+        val elements = HashMap<String, JsonElement>()
+        val connectorSaver = ConnectorBuilderSaver()
+        val connectorsJson = JsonArray(
+            job.graph.nodes().map {
+                connectorSaver.saveConnectorBuilder(it)
+            }
+        )
+        elements["connectors"] = connectorsJson
+
+        // edges
+        val edges: List<JsonObject> = job.graph.edges().map {
+            val obj = HashMap<String, JsonElement>()
+            obj.put("from", JsonPrimitive(it.first.data.identifier))
+            obj.put("to", JsonPrimitive(it.second.next.data.identifier))
+            JsonObject(obj)
+        }
+        elements["links"] = JsonArray(edges)
+
+        return JsonObject(elements)
+    }
+
+    private fun addEdge(cbuilder: List<NodeBuilder<JobConnectorBuilder, JobLink>>,
+                        jsonEdge : JsonElement) {
+        if (jsonEdge is JsonObject) {
+            val from = jsonEdge["from"]
+            val to = jsonEdge["to"]
+            if (from is JsonPrimitive && from.isString
+                && to is JsonPrimitive && to.isString) {
+                val connectorFrom : NodeBuilder<JobConnectorBuilder, JobLink>? = cbuilder.find { it.data.identifier == from.content }
+                val connectorTo : NodeBuilder<JobConnectorBuilder, JobLink>? = cbuilder.find { it.data.identifier == to.content }
+                if (connectorFrom is NodeBuilder<JobConnectorBuilder, JobLink>
+                    && connectorTo is NodeBuilder<JobConnectorBuilder, JobLink>) {
+                    connectorFrom.addNext(connectorTo, JobLink(LinkView(Color.BLACK, 3.0)))
+                }
+            }
+        }
+    }
+}
+
+class ConnectorBuilderSaver() {
+
+    fun saveConnectorBuilder(jobConncector : JobConnectorBuilder) : JsonObject {
+        val connectorElements = HashMap<String, JsonElement>()
+        val cfg : JsonObject = this.saveConfig(jobConncector.config)
+        connectorElements["config"] = cfg
+
+        saveConnector(jobConncector.connectorDesc, connectorElements)
+
+        connectorElements["name"] = JsonPrimitive(jobConncector.name)
+        connectorElements["identifier"] = JsonPrimitive(jobConncector.identifier)
+
+        this.saveView(jobConncector.view, connectorElements)
+
+        return JsonObject(connectorElements)
+    }
+
+    private fun saveConfig(config : Config.Builder) : JsonObject {
+        val elements = HashMap<String, JsonElement>()
+        val propFunction = { name: String , value: String -> elements[name] = JsonPrimitive(value) }
+        config.forProperties(propFunction)
+
+        val subFunction = { name: String , sub: Config.Builder -> elements[name] = this.saveConfig(sub) }
+        config.forSubreferentials(subFunction)
+        return JsonObject(elements)
+    }
+
+    private fun saveView(view : ComponentView, elements : MutableMap<String, JsonElement>) {
+        val jsonPos = HashMap<String, JsonElement>()
+        jsonPos["x"] = JsonPrimitive(view.position.x)
+        jsonPos["y"] = JsonPrimitive(view.position.y)
+        elements["position"] = JsonObject(jsonPos)
+    }
+
+    private fun saveConnector(desc : ConnectorDesc, elements : MutableMap<String, JsonElement>) {
+        val subElements = HashMap<String, JsonElement>()
+        subElements["name"] = JsonPrimitive(desc.identifier.name)
+        subElements["version"] = JsonArray(desc.identifier.version.v.map { s : Int -> JsonPrimitive(s) })
+        elements["connector"] = JsonObject(subElements)
     }
 
 }

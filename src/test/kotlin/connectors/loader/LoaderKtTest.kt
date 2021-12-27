@@ -5,10 +5,7 @@ import connectors.*
 import javafx.scene.image.Image
 import job.JobBuilder
 import job.JobConnectorBuilder
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.*
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import java.net.URL
@@ -90,6 +87,10 @@ class LoaderKtTest {
         Assertions.assertEquals(3, builder.graph.nodes().size)
         val job = builder.build()
         Assertions.assertEquals(2, job.graph.edges.size)
+
+        val saver = JobSaver()
+        val json = saver.saveJob(builder)
+        Assertions.assertNotNull(json.jsonObject["edges"])
     }
 
     @Test
@@ -106,6 +107,12 @@ class LoaderKtTest {
             Assertions.assertTrue(jobBuilder is JobConnectorBuilder)
             Assertions.assertEquals("testCnx1", jobBuilder?.name)
             Assertions.assertEquals("1", jobBuilder?.identifier)
+
+            if (jobBuilder is JobConnectorBuilder) {
+                val saver = ConnectorBuilderSaver()
+                val json = saver.saveConnectorBuilder(jobBuilder)
+                Assertions.assertEquals("testCnx1", json["name"]?.jsonPrimitive?.content)
+            }
             return
         }
         throw RuntimeException("file not exists")

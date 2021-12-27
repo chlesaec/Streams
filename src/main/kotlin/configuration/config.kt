@@ -1,5 +1,7 @@
 package configuration
 
+import kotlinx.serialization.Serializable
+
 sealed interface Stack<out T>
 class End<out T> : Stack<T>
 class StackElement<T>(val prec : Stack<T>, val element : T) : Stack<T>
@@ -48,6 +50,14 @@ internal constructor(val values : Map<String, T>,
         protected val properties = mutableMapOf<String, T>()
 
         protected val subs = mutableMapOf<String, B>()
+
+        fun forProperties(f: (String, T) -> Unit) {
+            this.properties.forEach(f)
+        }
+
+        fun forSubreferentials(f : (String, B) -> Unit) {
+            this.subs.forEach(f)
+        }
 
         fun add(name: String, value: T) : B {
             this.properties[name] = value
