@@ -11,7 +11,8 @@ import job.*
 import org.junit.jupiter.api.Test
 
 import org.junit.jupiter.api.Assertions.*
-import ui.ElementView
+import ui.ComponentView
+import ui.Coordinate
 import ui.LinkView
 import java.util.*
 
@@ -32,12 +33,8 @@ internal class JobRunnerTest {
             .add("end", "300")
             .add("step", "2")
             .build()
-        val view = object : ElementView<JobConnector, JobLink> {
-            override fun show(g: GraphicsContext,
-                              idetifier : UUID,
-                              graph : Graph<JobConnector, JobLink>) {
-            }
-        }
+        val view = ComponentView(Coordinate(2.0, 4.0));
+
         val c1 = JobConnector(desc1, conf, view)
 
         val confBis = Config.Builder()

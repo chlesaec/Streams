@@ -90,7 +90,10 @@ class LoaderKtTest {
 
         val saver = JobSaver()
         val json = saver.saveJob(builder)
-        Assertions.assertNotNull(json.jsonObject["edges"])
+        Assertions.assertNotNull(json.jsonObject["links"])
+
+        val builderCopy = loader.loadJob(json)
+        Assertions.assertEquals(3, builderCopy.graph.nodes().size)
     }
 
     @Test

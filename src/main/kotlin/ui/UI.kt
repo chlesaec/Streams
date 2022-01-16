@@ -2,6 +2,8 @@ package ui
 
 import configuration.Config
 import connectors.*
+import connectors.loader.JobLoader
+import connectors.loader.JobSaver
 import graph.*
 import javafx.event.ActionEvent
 import javafx.event.EventHandler
@@ -16,11 +18,17 @@ import javafx.scene.input.KeyEvent
 import javafx.scene.input.MouseEvent
 import javafx.scene.layout.*
 import javafx.scene.paint.Color
+import javafx.stage.FileChooser
 import javafx.stage.Stage
 import job.*
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import tornadofx.*
-import java.util.*
+import java.io.File
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sqrt
 
 @Serializable
@@ -38,12 +46,16 @@ data class Coordinate(val x : Double, val y : Double) {
         return Coordinate(this.x * other, this.y * other)
     }
 
+    operator fun times(other: Coordinate) : Double {
+        return this.x * other.x +  this.y * other.y
+    }
+
     operator fun div(other: Double) : Coordinate {
         return Coordinate(this.x / other, this.y / other)
     }
 
     fun length() : Double {
-        return sqrt(this.x*this.x + this.y*this.y);
+        return sqrt(this * this);
     }
 
     fun unit() : Coordinate {
@@ -59,95 +71,115 @@ data class Coordinate(val x : Double, val y : Double) {
             c / c.length()
         }
     }
+
+    fun distanceToSegment(start : Coordinate, end : Coordinate) : Double {
+        val delta = start - end
+        val ortho = delta.ortho()
+        val yOrtho = ((start.x - this.x)*delta.y*ortho.y
+                + this.y*delta.y*ortho.x - ortho.y*start.y*delta.x) /
+                (ortho.x*delta.y - ortho.y*delta.x)
+
+        val xOrtho = ((start.y - this.y)*delta.x*ortho.x
+                + this.x*delta.x*ortho.y - ortho.x*start.x*delta.y) /
+                (ortho.y*delta.x - ortho.x*delta.y)
+        val pointOrtho = Coordinate(xOrtho, yOrtho)
+        val distance = if (pointOrtho.x <= max(start.x, end.x) &&
+            pointOrtho.x >= min(start.x, end.x)) {
+            val ps = this - pointOrtho
+            ps.length()
+        }
+        else {
+            min((start - this).length(), (end - this).length())
+        }
+        return distance
+    }
 }
 
-interface ElementView<T, U> {
-    fun show(g : GraphicsContext, identifier : UUID, graph : Graph<T, U>)
-
-    fun center(size : Coordinate) : Coordinate = Coordinate(0.0, 0.0)
-
-    fun inside(c : Coordinate, size : Coordinate) : Boolean = false
-}
 
 @Serializable
-class ComponentView(var position : Coordinate) : ElementView<JobConnector, JobLink> {
-    override fun show(g : GraphicsContext,
-                      identifier: UUID,
-                      graph : Graph<JobConnector, JobLink>) {
-        val desc : ConnectorDesc? = graph.nodes[identifier]?.data?.connectorDesc
-        val icon : Image? = desc?.let { it.icon() }
-        if (icon is Image) {
-            g.drawImage(
-                icon, this.position.x, this.position.y,
-                icon.width, icon.height
-            )
-        }
+class ComponentView(var position : Coordinate) {
+
+    fun show(g : GraphicsContext,
+             node: JobConnectorBuilder) {
+        val icon : Image = node.connectorDesc.icon()
+        g.drawImage(
+            icon, this.position.x, this.position.y,
+            icon.width, icon.height
+        )
     }
 
-    override fun center(size : Coordinate) : Coordinate {
+    fun center(size : Coordinate) : Coordinate {
         return this.position + (size / 2.0)
     }
 
-    override fun inside(c : Coordinate, size : Coordinate) : Boolean {
+    fun inside(c : Coordinate, size : Coordinate) : Boolean {
         return this.position.x < c.x && this.position.x + size.x.toInt() > c.x
                 && this.position.y < c.y && this.position.y + size.y.toInt() > c.y
     }
 }
 
 @Serializable
-class LinkView(val color : Color,
-               val width : Double) : ElementView<JobConnector, JobLink> {
-    override fun show(g : GraphicsContext,
-                      identifier: UUID,
-                      graph : Graph<JobConnector, JobLink>) {
-        g.stroke = this.color
-        g.lineWidth = this.width
+class LinkView(var color : Color,
+               var width : Double)  {
+    fun show(g : GraphicsContext,
+             edge: Pair<JobNodeBuilder, JobEdgeBuilder>) {
+        val start = edge.first.data.center()
+        val end = edge.second.next.data.center()
+        ArrowView().drawArrow(g, this.color, this.width, start, end)
+    }
+}
 
-        val edge: Edge<JobConnector, JobLink>? = graph.edges[identifier]
-        if (edge is Edge<JobConnector, JobLink>) {
-            val start: Coordinate = edge.start.data.center()
-            val end: Coordinate  = edge.end.data.center()
-            val middlePoint = ((start + end) / 2.0)
+class ArrowView() {
+    fun drawArrow(g : GraphicsContext, color: Color, width: Double, start : Coordinate, end : Coordinate) {
+        g.stroke = color
+        g.lineWidth = width
+        val middlePoint = ((start + end) / 2.0)
 
-            val base = (end - start).unit() * 11.0
-            val arrowPoint = middlePoint + base
-            val basePoint = middlePoint - base
-            val ortho = (arrowPoint - basePoint).ortho()
+        val base = (end - start).unit() * 11.0
+        val arrowPoint = middlePoint + base
+        val basePoint = middlePoint - base
+        val ortho = (arrowPoint - basePoint).ortho()
 
-            val firstPoint = basePoint + (ortho * 11.0)
-            val secondPoint = basePoint - (ortho * 11.0)
-            g.strokeLine(start.x, start.y, end.x, end.y)
-            g.strokeLine(firstPoint.x, firstPoint.y, arrowPoint.x, arrowPoint.y)
-            g.strokeLine(secondPoint.x, secondPoint.y, arrowPoint.x, arrowPoint.y)
-        }
+        val firstPoint = basePoint + (ortho * 11.0)
+        val secondPoint = basePoint - (ortho * 11.0)
+        g.strokeLine(start.x, start.y, end.x, end.y)
+        g.strokeLine(firstPoint.x, firstPoint.y, arrowPoint.x, arrowPoint.y)
+        g.strokeLine(secondPoint.x, secondPoint.y, arrowPoint.x, arrowPoint.y)
     }
 }
 
 class JobView(val jobBuilder: JobBuilder) {
     fun show(g : GraphicsContext) {
-        val job : Job = this.jobBuilder.build()
-        val edges: Map<UUID, Edge<JobConnector, JobLink>> = job.graph.edges
-        edges.values.forEach {
-            it.data.view.show(g, it.identifier, job.graph)
+
+        this.jobBuilder.graph.edges().forEach {
+            it.second.data.view.show(g, it)
         }
-        val nodes: Map<UUID, Node<JobConnector, JobLink>> = job.graph.nodes;
-        nodes.values.forEach {
-            it.data.view.show(g, it.identifier, job.graph)
+        this.jobBuilder.graph.nodes().forEach {
+            it.view.show(g, it)
         }
     }
 
-    fun searchComponent(c : Coordinate) : JobConnectorBuilder? {
-        return this.jobBuilder.graph.nodes()
+    fun searchComponent(c : Coordinate) : JobNodeBuilder? {
+        return this.jobBuilder.graph.nodesBuilder()
             .find {
-                val icon = it.connectorDesc.icon()
-                it.view.inside(c, Coordinate(icon.width, icon.height))
+                val icon = it.data.connectorDesc.icon()
+                it.data.view.inside(c, Coordinate(icon.width, icon.height))
             }
+    }
+
+    fun searchLink(c : Coordinate) : Pair<JobNodeBuilder, JobEdgeBuilder>? {
+        return this.jobBuilder.graph.edges().find {
+            val start: Coordinate = it.first.data.center()
+            val end: Coordinate = it.second.next.data.center()
+
+            val distance = c.distanceToSegment(start, end)
+            distance <= 10.0
+        }
     }
 }
 
 class NodeDragger(val canvas : Canvas,
                   val component : ComponentView,
-                  val job : JobView,
                   val show : (GraphicsContext) -> Unit) {
     val dm : EventHandler<MouseEvent> = EventHandler<MouseEvent>() {
             v : MouseEvent ->  this.dragMoved(v)
@@ -172,6 +204,68 @@ class NodeDragger(val canvas : Canvas,
         this.canvas.removeEventFilter(MouseEvent.MOUSE_RELEASED, this.ed)
 
         evt.consume()
+    }
+}
+
+class NewLinkDragger(val canvas : Canvas,
+                     val component : JobNodeBuilder,
+                     val show : (GraphicsContext) -> Unit,
+                     val buildNewLink : (Coordinate) -> Unit) {
+    private val dm : EventHandler<MouseEvent> = EventHandler<MouseEvent>() {
+            v : MouseEvent ->  this.dragMoved(v)
+    }
+    private val ed : EventHandler<MouseEvent> = EventHandler<MouseEvent>() {
+            v : MouseEvent ->  this.endDrag(v)
+    }
+    private val startPosition : Coordinate
+    init {
+        this.canvas.addEventFilter(MouseEvent.MOUSE_DRAGGED, this.dm)
+        this.canvas.addEventFilter(MouseEvent.MOUSE_RELEASED, this.ed)
+        val img = component.data.connectorDesc.icon()
+        val size = Coordinate(img.width, img.height)
+        this.startPosition = component.data.view.center(size)
+    }
+
+    private fun dragMoved(evt : MouseEvent) {
+        val endPosition = Coordinate(evt.x, evt.y)
+        this.canvas.graphicsContext2D.clearRect(0.0, 0.0, this.canvas.width, this.canvas.height)
+        this.show(this.canvas.graphicsContext2D)
+
+        ArrowView().drawArrow(this.canvas.graphicsContext2D, Color.BLACK, 3.0, this.startPosition, endPosition)
+
+        evt.consume()
+    }
+
+    private fun endDrag(evt : MouseEvent) {
+        this.canvas.removeEventFilter(MouseEvent.MOUSE_DRAGGED, this.dm)
+        this.canvas.removeEventFilter(MouseEvent.MOUSE_RELEASED, this.ed)
+
+        val endPosition = Coordinate(evt.x, evt.y)
+        this.buildNewLink(endPosition)
+
+        this.canvas.graphicsContext2D.clearRect(0.0, 0.0, this.canvas.width, this.canvas.height)
+        this.show(this.canvas.graphicsContext2D)
+
+        evt.consume()
+    }
+}
+
+class LinkBuilder(val job : JobBuilder,
+                  val startComponent : JobNodeBuilder,
+                  val linkBuilder : () -> JobLink) {
+    fun newLink(endPosition : Coordinate) {
+
+        val endComponent : NodeBuilder<JobConnectorBuilder, JobLink>? = job.graph.nodesBuilder().filter {
+            cnxNode : NodeBuilder<JobConnectorBuilder, JobLink> ->
+
+            val cnx = cnxNode.data
+            val size = Coordinate(cnx.connectorDesc.icon().width, cnx.connectorDesc.icon().height)
+            cnxNode != startComponent && cnx.view.inside(endPosition, size)
+        }
+            .firstOrNull()
+       if (endComponent is NodeBuilder<JobConnectorBuilder, JobLink>) {
+           startComponent.addNext(endComponent, this.linkBuilder())
+       }
     }
 }
 
@@ -227,7 +321,8 @@ class StudioView() : View("studio") {
     var jobView : JobView
     var configView : ConfigView
     var selectedConnector : JobConnectorBuilder? = null
-    var job : Job
+    var selectedEdge : Pair<JobNodeBuilder, JobEdgeBuilder>? = null
+    var job : JobBuilder
 
 
     init {
@@ -237,8 +332,8 @@ class StudioView() : View("studio") {
         val c2View = ComponentView(Coordinate(220.0, 160.0))
         val c3View = ComponentView(Coordinate(470.0, 290.0))
 
-        val l1 = JobLink(LinkView(Color.RED, 3.0))
-        val l2 = JobLink(LinkView(Color.BLUE, 6.0))
+        val l1 = JobLink(LinkView(Color.BLACK, 3.0))
+        val l2 = JobLink(LinkView(Color.BLACK, 3.0))
 
         Image("file:" + iconUrl.path)
         val descCon = ConnectorDesc(
@@ -256,7 +351,8 @@ class StudioView() : View("studio") {
         val node1 = builder.addNode(c1);
         node1.addNext(c2, l1).next.addNext(c3, l2)
 
-        this.jobView = JobView( JobBuilder(builder))
+        this.job = JobBuilder(builder)
+        this.jobView = JobView(this.job)
 
         val confRec = ComposedType(
             Fields.Builder()
@@ -268,16 +364,12 @@ class StudioView() : View("studio") {
             .add("f1", "value1")
             .add("f2", "value2")
         this.configView = ConfigView(c1, confRec)
-
-        val jobBuilder = GraphBuilder<JobConnector, JobLink>();
-
-        job = Job(jobBuilder.build())
     }
 
     private fun draw(g : GraphicsContext) {
         this.jobView.show(g)
         val cnx = this.selectedConnector
-        println("Selected connector ")
+
         if (cnx is JobConnectorBuilder) {
 
             val img = cnx.connectorDesc.icon()
@@ -291,12 +383,23 @@ class StudioView() : View("studio") {
             g.strokeLine(center.x + (size/2.0).x, center.y - (size/2.0).y, center.x + (size/2.0).x, center.y + (size/2.0).y)
             g.strokeLine(center.x - (size/2.0).x, center.y - (size/2.0).y, center.x - (size/2.0).x, center.y + (size/2.0).y)
         }
+        val selectedLink = this.selectedEdge
+        if (selectedLink is Pair<JobNodeBuilder, JobEdgeBuilder>) {
+            val start = selectedLink.first.data.center()
+            val end = selectedLink.second.next.data.center()
+            g.lineWidth = 7.0
+            g.stroke = Color.YELLOW
+            g.strokeLine(start.x, start.y, end.x, end.y)
+        }
     }
 
     override val root = borderpane {
         top = hbox {
             menubar {
-                menu("File")
+                menu("File") {
+                    menuitem("Load").setOnAction(this@StudioView::loadJob)
+                    menuitem("Save").setOnAction(this@StudioView::saveJob)
+                }
             }
         }
         center = canvas {
@@ -311,22 +414,97 @@ class StudioView() : View("studio") {
         right = this@StudioView.configView.buildNode()
     }
 
+    private fun loadJob(evt : ActionEvent) {
+        println("Load Job")
+
+        val chooser = FileChooser()
+        chooser.title = "Save current job"
+        chooser.extensionFilters.add(FileChooser.ExtensionFilter("json", "json"))
+        chooser.initialDirectory = File(System.getenv("HOME") ?: "")
+        chooser.selectedExtensionFilter = FileChooser.ExtensionFilter("json", "json")
+        val loadFile : File? = chooser.showOpenDialog(this.currentWindow)
+
+        if (loadFile is File) {
+            val content : String = loadFile.readText();
+            val jsonJob: JsonElement = Json.parseToJsonElement(content)
+            if (jsonJob is JsonObject) {
+                this.job = JobLoader().loadJob(jsonJob)
+                this.jobView = JobView(this.job)
+            }
+        }
+
+    }
+
+    private fun saveJob(evt : ActionEvent) {
+        println("Save Job")
+        val jsonJob = JobSaver().saveJob(this.job)
+        val chooser = FileChooser()
+        chooser.title = "Save current job"
+        chooser.extensionFilters.add(FileChooser.ExtensionFilter("json", "json"))
+        chooser.initialDirectory = File(System.getenv("HOME") ?: "")
+        chooser.selectedExtensionFilter = FileChooser.ExtensionFilter("json", "json")
+        val savedFile : File? = chooser.showSaveDialog(this.currentWindow)
+
+        if (savedFile is File) {
+            val result = jsonJob.toString()
+            savedFile.writeText(result)
+        }
+
+        println("name ${savedFile?.name}")
+    }
+
     private fun startDrag(evt: MouseEvent) {
         val center = root.center
         if (center is Canvas) {
-            val comp : JobConnectorBuilder? = this.jobView.searchComponent(Coordinate(evt.x, evt.y))
-            if (comp is JobConnectorBuilder) {
+            val pointEvt = Coordinate(evt.x, evt.y)
+            val comp : JobNodeBuilder? = this.jobView.searchComponent(pointEvt)
+            if (comp is JobNodeBuilder) {
+                val connector = comp.data
+                this.configView = ConfigView(connector, connector.connectorDesc.config.description)
+                root.right = this.configView.buildNode()
+                this.selectedConnector = connector
+                center.graphicsContext2D.clearRect(0.0, 0.0, center.width, center.height)
+                this.draw(center.graphicsContext2D)
                 if (evt.button.ordinal == 1) {
-                    this.configView = ConfigView(comp, comp.connectorDesc.config.description)
-                    root.right = this.configView.buildNode()
-                    this.selectedConnector = comp
-                    println("affected selected connector")
-                    NodeDragger(center, comp.view as ComponentView, this.jobView, this::draw)
+                    NodeDragger(center, connector.view as ComponentView, this::draw)
                 }
-                else if (evt.button.ordinal == 3) {
-                    val item = MenuItem("Hello")
-                    val menu = ContextMenu(item)
+                else {
+                    val item = MenuItem("New Link")
+                    val lb = LinkBuilder(this.job, comp) { JobLink(LinkView(Color.BLACK, 3.0)) }
+                    item.setOnAction { e : ActionEvent -> NewLinkDragger(center, comp, this::draw, lb::newLink) }
+
+                    val deleteItem = MenuItem("delete")
+                    deleteItem.setOnAction { e : ActionEvent ->
+                        this.job.graph.removeNode(comp.identifier)
+                        this.selectedConnector = null
+                        center.graphicsContext2D.clearRect(0.0, 0.0, center.width, center.height)
+                        this.draw(center.graphicsContext2D)
+                    }
+
+                    val menu = ContextMenu(item, deleteItem)
                     menu.show(center, evt.screenX, evt.screenY)
+                }
+            }
+            else {
+                val edge : Pair<JobNodeBuilder, JobEdgeBuilder>? = this.jobView.searchLink(pointEvt)
+                this.selectedConnector = null
+                this.selectedEdge = edge
+                center.graphicsContext2D.clearRect(0.0, 0.0, center.width, center.height)
+                this.draw(center.graphicsContext2D)
+                val currentEdge = this.selectedEdge
+                if (currentEdge is Pair<JobNodeBuilder, JobEdgeBuilder>) {
+                    if (evt.button.ordinal > 1) {
+                        val deleteItem = MenuItem("delete")
+                        deleteItem.setOnAction { e : ActionEvent ->
+                            this.job.graph.removeEdge(currentEdge.first, currentEdge.second)
+                            this.selectedEdge = null
+                            center.graphicsContext2D.clearRect(0.0, 0.0, center.width, center.height)
+                            this.draw(center.graphicsContext2D)
+                        }
+
+                        val menu = ContextMenu(deleteItem)
+                        menu.show(center, evt.screenX, evt.screenY)
+                    }
                 }
             }
         }

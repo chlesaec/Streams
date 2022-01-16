@@ -65,6 +65,18 @@ class NodeBuilder<T, U> internal constructor(val g : GraphBuilder<T, U>, val dat
         return e
     }
 
+    fun removeNext(identifier: UUID) {
+        var index = 0
+        while (index < this.nexts.size) {
+            if (this.nexts[index].next.identifier == identifier) {
+                this.nexts.removeAt(index)
+            }
+            else {
+                index++
+            }
+        }
+    }
+
     fun build() : Node<T, U> {
         return Node<T, U>(this.data, this.identifier)
     }
@@ -77,6 +89,8 @@ class NodeBuilder<T, U> internal constructor(val g : GraphBuilder<T, U>, val dat
 }
 
 class EdgeBuilder<T, U> internal constructor(val data : U, val next : NodeBuilder<T, U>) {
+
+    val identifier = UUID.randomUUID()
 
     fun build(start : NodeBuilder<T, U>, nodeFinder : (UUID) -> Node<T, U>?) : Edge<T, U> {
         val startNode : Node<T, U> = nodeFinder(start.identifier) ?: start.build()
@@ -100,11 +114,32 @@ class GraphBuilder<T, U>() {
         return builder
     }
 
+    fun removeNode(identifier: UUID) {
+        this.nodeBuilders.forEach { it.removeNext(identifier) }
+        var index = 0
+        var found = false
+        while (index < this.nodeBuilders.size && !found) {
+            if (this.nodeBuilders[index].identifier == identifier) {
+                this.nodeBuilders.removeAt(index)
+                found = true
+            }
+            index++
+        }
+    }
+
+    fun nodesBuilder() = this.nodeBuilders.toList()
+
     fun nodes() : List<T> = this.nodeBuilders.toList().map { it.data }
 
     fun edges() : List<Pair<NodeBuilder<T, U>, EdgeBuilder<T, U>>> {
         return this.nodeBuilders.flatMap { n: NodeBuilder<T, U> ->
             n.nexts.map { e : EdgeBuilder<T, U> -> Pair(n ,e) }
+        }
+    }
+
+    fun removeEdge(startNode : NodeBuilder<T, U>, edge : EdgeBuilder<T, U>) {
+        startNode.nexts.removeAll {
+            it.identifier == edge.identifier
         }
     }
 
