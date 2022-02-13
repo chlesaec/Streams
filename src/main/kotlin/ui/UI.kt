@@ -1,24 +1,30 @@
 package ui
 
+import commons.Coordinate
 import configuration.Config
 import connectors.*
+import connectors.format.csv.CsvReaderDescriptor
+import connectors.io.LocalFileDescriptor
+import connectors.io.LocalFileOutputDescriptor
 import connectors.loader.JobLoader
 import connectors.loader.JobSaver
-import graph.*
+import graph.GraphBuilder
+import graph.NodeBuilder
+import javafx.collections.FXCollections
+import javafx.collections.ObservableList
 import javafx.event.ActionEvent
 import javafx.event.EventHandler
+import javafx.scene.Scene
 import javafx.scene.canvas.Canvas
 import javafx.scene.canvas.GraphicsContext
-import javafx.scene.control.ContextMenu
-import javafx.scene.control.Label
-import javafx.scene.control.MenuItem
-import javafx.scene.control.TextField
+import javafx.scene.control.*
 import javafx.scene.image.Image
 import javafx.scene.input.KeyEvent
 import javafx.scene.input.MouseEvent
 import javafx.scene.layout.*
 import javafx.scene.paint.Color
 import javafx.stage.FileChooser
+import javafx.stage.Modality
 import javafx.stage.Stage
 import job.*
 import kotlinx.serialization.Serializable
@@ -27,106 +33,18 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import tornadofx.*
 import java.io.File
-import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.sqrt
-
-@Serializable
-data class Coordinate(val x : Double, val y : Double) {
-
-    operator fun plus(other : Coordinate) : Coordinate {
-        return Coordinate(this.x + other.x, this.y + other.y)
-    }
-
-    operator fun minus(other : Coordinate) : Coordinate {
-        return Coordinate(this.x - other.x, this.y - other.y)
-    }
-
-    operator fun times(other: Double) : Coordinate {
-        return Coordinate(this.x * other, this.y * other)
-    }
-
-    operator fun times(other: Coordinate) : Double {
-        return this.x * other.x +  this.y * other.y
-    }
-
-    operator fun div(other: Double) : Coordinate {
-        return Coordinate(this.x / other, this.y / other)
-    }
-
-    fun length() : Double {
-        return sqrt(this * this);
-    }
-
-    fun unit() : Coordinate {
-        return this / this.length()
-    }
-
-    fun ortho() : Coordinate {
-        return if (this.x == 0.0) {
-            Coordinate(1.0, 0.0)
-        }
-        else {
-            val c = Coordinate(-this.y/this.x, 1.0)
-            c / c.length()
-        }
-    }
-
-    fun distanceToSegment(start : Coordinate, end : Coordinate) : Double {
-        val delta = start - end
-        val ortho = delta.ortho()
-        val yOrtho = ((start.x - this.x)*delta.y*ortho.y
-                + this.y*delta.y*ortho.x - ortho.y*start.y*delta.x) /
-                (ortho.x*delta.y - ortho.y*delta.x)
-
-        val xOrtho = ((start.y - this.y)*delta.x*ortho.x
-                + this.x*delta.x*ortho.y - ortho.x*start.x*delta.y) /
-                (ortho.y*delta.x - ortho.x*delta.y)
-        val pointOrtho = Coordinate(xOrtho, yOrtho)
-        val distance = if (pointOrtho.x <= max(start.x, end.x) &&
-            pointOrtho.x >= min(start.x, end.x)) {
-            val ps = this - pointOrtho
-            ps.length()
-        }
-        else {
-            min((start - this).length(), (end - this).length())
-        }
-        return distance
-    }
-}
+import java.util.*
 
 
-@Serializable
-class ComponentView(var position : Coordinate) {
+class ComponentDraw(val g : GraphicsContext) {
 
-    fun show(g : GraphicsContext,
-             node: JobConnectorBuilder) {
-        val icon : Image = node.connectorDesc.icon()
-        g.drawImage(
-            icon, this.position.x, this.position.y,
+    fun show(position : Coordinate, icon : Image) {
+        this.g.drawImage(
+            icon, position.x, position.y,
             icon.width, icon.height
         )
     }
 
-    fun center(size : Coordinate) : Coordinate {
-        return this.position + (size / 2.0)
-    }
-
-    fun inside(c : Coordinate, size : Coordinate) : Boolean {
-        return this.position.x < c.x && this.position.x + size.x.toInt() > c.x
-                && this.position.y < c.y && this.position.y + size.y.toInt() > c.y
-    }
-}
-
-@Serializable
-class LinkView(var color : Color,
-               var width : Double)  {
-    fun show(g : GraphicsContext,
-             edge: Pair<JobNodeBuilder, JobEdgeBuilder>) {
-        val start = edge.first.data.center()
-        val end = edge.second.next.data.center()
-        ArrowView().drawArrow(g, this.color, this.width, start, end)
-    }
 }
 
 class ArrowView() {
@@ -152,18 +70,26 @@ class JobView(val jobBuilder: JobBuilder) {
     fun show(g : GraphicsContext) {
 
         this.jobBuilder.graph.edges().forEach {
-            it.second.data.view.show(g, it)
+            this.showLink(g, it.second.data.view, it)
         }
         this.jobBuilder.graph.nodes().forEach {
-            it.view.show(g, it)
+            val draw = ComponentDraw(g)
+            it.show(draw::show)
         }
+    }
+
+    fun showLink(g : GraphicsContext,
+                 view : LinkView,
+                 edge: Pair<JobNodeBuilder, JobEdgeBuilder>) {
+        val start = edge.first.data.center()
+        val end = edge.second.next.data.center()
+        ArrowView().drawArrow(g, view.color, view.width, start, end)
     }
 
     fun searchComponent(c : Coordinate) : JobNodeBuilder? {
         return this.jobBuilder.graph.nodesBuilder()
             .find {
-                val icon = it.data.connectorDesc.icon()
-                it.data.view.inside(c, Coordinate(icon.width, icon.height))
+                it.data.inside(c)
             }
     }
 
@@ -250,17 +176,55 @@ class NewLinkDragger(val canvas : Canvas,
     }
 }
 
+
+class ConnectorsDialog(ownerStage : Stage, addJob : (String) -> Unit) {
+    private val stage: Stage = Stage()
+
+    init {
+        stage.title = "Connectors"
+        stage.initOwner(ownerStage)
+        val root = BorderPane()
+
+        val names = FXCollections.observableArrayList(Connectors.names())
+        root.center = ListView(names)
+
+        val cancelButton = Button("Cancel")
+        val okButton = Button("Ok")
+        cancelButton.onAction = EventHandler {
+            it.consume()
+            this.stage.close()
+        }
+        okButton.onAction = EventHandler {
+            it.consume()
+            this.stage.close()
+        }
+        root.bottom = HBox(1.4,
+            cancelButton,
+            okButton)
+        val scene = Scene(root, 550.0, 250.0)
+        stage.scene = scene
+    }
+
+    /**
+     * Show dialog modally and then return the result
+     */
+    fun showAndWait(): String {
+        stage.initModality(Modality.APPLICATION_MODAL)
+
+        stage.showAndWait()
+        return "Hello"
+    }
+
+}
+
 class LinkBuilder(val job : JobBuilder,
                   val startComponent : JobNodeBuilder,
                   val linkBuilder : () -> JobLink) {
     fun newLink(endPosition : Coordinate) {
 
-        val endComponent : NodeBuilder<JobConnectorBuilder, JobLink>? = job.graph.nodesBuilder().filter {
-            cnxNode : NodeBuilder<JobConnectorBuilder, JobLink> ->
-
-            val cnx = cnxNode.data
-            val size = Coordinate(cnx.connectorDesc.icon().width, cnx.connectorDesc.icon().height)
-            cnxNode != startComponent && cnx.view.inside(endPosition, size)
+        val endComponent : JobNodeBuilder? = job.graph.nodesBuilder().filter {
+            cnxNode : JobNodeBuilder ->
+            cnxNode != startComponent && cnxNode.data.inside(endPosition)
         }
             .firstOrNull()
        if (endComponent is NodeBuilder<JobConnectorBuilder, JobLink>) {
@@ -400,6 +364,12 @@ class StudioView() : View("studio") {
                     menuitem("Load").setOnAction(this@StudioView::loadJob)
                     menuitem("Save").setOnAction(this@StudioView::saveJob)
                 }
+                menu("Connectors") {
+                    menuitem("Load").setOnAction {
+                        val dialog = ConnectorsDialog(this@StudioView.currentStage ?: this@StudioView.primaryStage, this@StudioView::addConnector)
+                        dialog.showAndWait()
+                    }
+                }
             }
         }
         center = canvas {
@@ -412,6 +382,18 @@ class StudioView() : View("studio") {
             this.addEventFilter(MouseEvent.MOUSE_PRESSED, this@StudioView::startDrag)
         }
         right = this@StudioView.configView.buildNode()
+    }
+
+    private fun addConnector(name: String) {
+        val cnx: ConnectorDesc? = Connectors.get(name)
+        if (cnx is ConnectorDesc) {
+            val cnxBuild = JobConnectorBuilder(name,
+                UUID.randomUUID().toString(),
+                cnx,
+                Config.Builder(),
+                ComponentView(Coordinate(3.0,10.0)))
+            this.job.graph.addNode(cnxBuild)
+        }
     }
 
     private fun loadJob(evt : ActionEvent) {
@@ -466,7 +448,7 @@ class StudioView() : View("studio") {
                 center.graphicsContext2D.clearRect(0.0, 0.0, center.width, center.height)
                 this.draw(center.graphicsContext2D)
                 if (evt.button.ordinal == 1) {
-                    NodeDragger(center, connector.view as ComponentView, this::draw)
+                    NodeDragger(center, connector.view, this::draw)
                 }
                 else {
                     val item = MenuItem("New Link")
@@ -527,7 +509,13 @@ class VoidConnector(config : Config) : Connector(config) {
     }
 }
 
+fun initConectors() {
+    LocalFileDescriptor
+    LocalFileOutputDescriptor
+    CsvReaderDescriptor
+}
 
 fun main(args: Array<String>) {
+    initConectors()
     launch<Studio>(args)
 }

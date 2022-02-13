@@ -1,5 +1,6 @@
 package job
 
+import commons.Coordinate
 import configuration.Config
 import connectors.ConnectorDesc
 import functions.FunctionConsumer
@@ -7,24 +8,26 @@ import graph.EdgeBuilder
 import graph.Graph
 import graph.GraphBuilder
 import graph.NodeBuilder
+import javafx.scene.image.Image
+import javafx.scene.paint.Color
 import kotlinx.serialization.Serializable
 import runner.Runner
-import ui.ComponentView
-import ui.Coordinate
-import ui.LinkView
 
+
+class ComponentView(var position : Coordinate = Coordinate(0.0, 0.0)) {
+    fun center(size : Coordinate) : Coordinate {
+        return this.position + (size / 2.0)
+    }
+}
+
+class LinkView(var color : Color,
+               var width : Double)
 
 @Serializable
 class JobConnector(val connectorDesc: ConnectorDesc,
-                   val config : Config,
-                   val view : ComponentView) {
+                   val config : Config) {
     fun buildConnector() : FunctionConsumer {
         return this.connectorDesc.build(this.config)
-    }
-
-    fun center() : Coordinate {
-        val icon = this.connectorDesc.icon()
-        return this.view.center(Coordinate(icon.width, icon.height))
     }
 }
 
@@ -35,11 +38,23 @@ class JobConnectorBuilder(val name : String,
                           val connectorDesc: ConnectorDesc,
                           var config : Config.Builder,
                           val view : ComponentView) {
-    fun toJobConnector() : JobConnector = JobConnector(this.connectorDesc, this.config.build(), this.view)
+    fun toJobConnector() : JobConnector = JobConnector(this.connectorDesc, this.config.build())
 
     fun center() : Coordinate {
         val icon = this.connectorDesc.icon()
         return this.view.center(Coordinate(icon.width, icon.height))
+    }
+
+    fun inside(c : Coordinate) : Boolean {
+        val icon : Image = this.connectorDesc.icon()
+        val size = Coordinate(icon.width, icon.height)
+        return this.view.position.x < c.x && this.view.position.x + size.x.toInt() > c.x
+                && this.view.position.y < c.y && this.view.position.y + size.y.toInt() > c.y
+    }
+
+
+    fun show(graphicFunction : (Coordinate, Image) -> Unit) {
+        graphicFunction(this.view.position, this.connectorDesc.icon())
     }
 }
 

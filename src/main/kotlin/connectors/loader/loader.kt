@@ -1,18 +1,15 @@
 package connectors.loader
 
+import commons.Coordinate
 import configuration.Config
 import connectors.*
 import graph.GraphBuilder
 import graph.NodeBuilder
 import javafx.scene.image.Image
 import javafx.scene.paint.Color
-import job.JobBuilder
-import job.JobConnectorBuilder
-import job.JobLink
+import job.*
 import kotlinx.serialization.json.*
-import ui.ComponentView
-import ui.Coordinate
-import ui.LinkView
+
 import java.io.File
 import java.lang.RuntimeException
 import java.net.URL

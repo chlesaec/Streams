@@ -1,5 +1,6 @@
 package runner
 
+import commons.Coordinate
 import configuration.Config
 import connectors.*
 import graph.Graph
@@ -11,9 +12,7 @@ import job.*
 import org.junit.jupiter.api.Test
 
 import org.junit.jupiter.api.Assertions.*
-import ui.ComponentView
-import ui.Coordinate
-import ui.LinkView
+import job.ComponentView
 import java.util.*
 
 internal class JobRunnerTest {
@@ -35,14 +34,14 @@ internal class JobRunnerTest {
             .build()
         val view = ComponentView(Coordinate(2.0, 4.0));
 
-        val c1 = JobConnector(desc1, conf, view)
+        val c1 = JobConnector(desc1, conf)
 
         val confBis = Config.Builder()
             .add("start", "20")
             .add("end", "60")
             .add("step", "1")
             .build()
-        val c1Bis = JobConnector(desc1, confBis , view)
+        val c1Bis = JobConnector(desc1, confBis)
 
         val graphJobBuilder = GraphBuilder<JobConnector, JobLink>()
         val node1 = graphJobBuilder.addNode(c1)
@@ -55,7 +54,7 @@ internal class JobRunnerTest {
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
         ) { c: Config -> IntInc(c) }
-        val c2 = JobConnector(desc2, Config.Builder().build(), view)
+        val c2 = JobConnector(desc2, Config.Builder().build())
         val node2 = graphJobBuilder.addNode(c2)
 
         val desc2Bis = ConnectorDesc(
@@ -65,7 +64,7 @@ internal class JobRunnerTest {
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
         ) { c: Config -> IntDouble(c) }
-        val c2Bis = JobConnector(desc2Bis, Config.Builder().build(), view)
+        val c2Bis = JobConnector(desc2Bis, Config.Builder().build())
         val node2Bis = graphJobBuilder.addNode(c2Bis)
 
         val desc3 = ConnectorDesc(
@@ -75,7 +74,7 @@ internal class JobRunnerTest {
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
         ) { c: Config -> IntReg(c) }
-        val c3 = JobConnector(desc3, Config.Builder().build(), view)
+        val c3 = JobConnector(desc3, Config.Builder().build())
         val node3 = graphJobBuilder.addNode(c3)
 
         node1.addNext(node2, JobLink(LinkView(Color.BLUE, 3.0)))

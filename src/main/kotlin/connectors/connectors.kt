@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.util.*
+
 import kotlin.collections.HashMap
 import kotlin.reflect.KClass
 import kotlin.reflect.full.isSubclassOf
@@ -145,7 +146,30 @@ class ConfigDescription(val description: ComposedType) {
     }
 }
 
-data class Version(val v: List<Int>)
+data class Version(val v: List<Int>) : Comparable<Version> {
+    override fun compareTo(other: Version): Int {
+        var res : Int = 0
+        var index : Int = 0
+        while (res == 0 && index < this.v.size && index < other.v.size) {
+            res = if (this.v[index] > other.v[index]) {
+                1
+            }
+            else if (this.v[index] < other.v[index]) {
+                -1
+            }
+            else 0
+            index++
+        }
+        if (res == 0 && index < this.v.size) {
+            res = 1
+        }
+        else if (res == 0 && index < other.v.size) {
+            res = -1
+        }
+        return res
+    }
+
+}
 
 data class VersionedIdentifier(
     val name: String,
@@ -183,19 +207,29 @@ abstract class Connector(
 }
 
 object Connectors {
-    private val connectors = HashMap<String, HashMap<Version, ConnectorDesc>>()
+    private val connectors = HashMap<String, SortedMap<Version, ConnectorDesc>>()
 
     fun get(name: String, version: Version): ConnectorDesc? {
         return this.connectors[name]?.get(version)
     }
 
+    fun get(name: String): ConnectorDesc? {
+        val cnx = this.connectors[name]
+        if (cnx is SortedMap) {
+            return cnx[cnx.lastKey()]
+        }
+        return null
+    }
+
+    fun names() : Collection<String> = this.connectors.keys
+
     fun register(connectorDesc: ConnectorDesc) {
         val name : String = connectorDesc.identifier.name
         val version : Version = connectorDesc.identifier.version
         this.connectors.compute(name)
-        { _: String, m: HashMap<Version, ConnectorDesc>? ->
-            val map: HashMap<Version, ConnectorDesc> =
-                if (m == null) HashMap()
+        { _: String, m: SortedMap<Version, ConnectorDesc>? ->
+            val map: SortedMap<Version, ConnectorDesc> =
+                if (m == null) TreeMap()
                 else m
             map[version] = connectorDesc
             map

@@ -1,14 +1,11 @@
 package main
 
+import commons.Coordinate
 import graph.GraphBuilder
 import javafx.scene.image.Image
 import javafx.scene.paint.Color
-import job.Job
-import job.JobConnector
-import job.JobLink
-import ui.ComponentView
-import ui.Coordinate
-import ui.LinkView
+import job.*
+
 import java.util.*
 
 fun buildJob() : Job {
