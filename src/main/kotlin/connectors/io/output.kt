@@ -3,12 +3,15 @@ package connectors.io
 import configuration.Config
 import connectors.*
 import javafx.scene.image.Image
-import java.io.BufferedWriter
+import java.io.*
 import java.nio.file.Files
 import java.nio.file.Path
 
 interface ByteReader {
-    fun read(data : ByteArray) : Int
+    fun read() : Iterator<ByteArray>
+}
+interface ByteReaderGetter {
+    fun reader() : ByteReader
 }
 
 val localFileOutputConfigDescription = ConfigDescription(
@@ -22,10 +25,10 @@ val localFileOutputConfigDescription = ConfigDescription(
 object LocalFileOutputDescriptor :
     ConnectorDesc(
         VersionedIdentifier("LocalFileOutput", Version(listOf(1))),
-        Link(ByteReader::class),
-        Link(Nothing::class),
+        Link(arrayOf(ByteReader::class, ByteReaderGetter::class)),
+        Nothing::class,
         localFileOutputConfigDescription,
-        { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) },
+        { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png").path) },
         { c : Config -> LocalFileOutputConnector(c) }
     ) {
     init {
@@ -36,18 +39,38 @@ object LocalFileOutputDescriptor :
 class LocalFileOutputConnector(config : Config) : Connector(config) {
     override fun run(input: Any?, output: (Any?) -> Unit) {
         if (input is ByteReader) {
-            val file = Path.of(config.get("root"))
+            val file = Path.of(config.get("path"))
 
             Files.newBufferedWriter(file)
                 .use() {
                     writer : BufferedWriter ->
-                    val data = ByteArray(1024)
-                    var nbe = input.read(data)
-                    while (nbe > 0) {
-                        writer.write(data.decodeToString())
-                        nbe = input.read(data)
+                    val data : Iterator<ByteArray> = input.read()
+                    while (data.hasNext()) {
+                        val array = data.next()
+                        writer.write(array.decodeToString())
                     }
                 }
+        }
+        else if (input is InputRecord) {
+            val root = Path.of(config.get("path"))
+            val destPath = File(root.toFile(), input.folder);
+            if (!destPath.exists()) {
+                Files.createDirectories(destPath.toPath())
+            }
+            val destFile = File(destPath, input.objectName)
+            input.consume {
+                this.copyStream(it, destFile)
+            }
+        }
+    }
+
+    private fun copyStream(input : InputStream,
+                           outFile : File) {
+        if (!outFile.exists()) {
+            outFile.createNewFile()
+        }
+        FileOutputStream(outFile).use {
+            input.transferTo(it)
         }
     }
 }

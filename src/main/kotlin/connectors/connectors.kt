@@ -28,12 +28,17 @@ class Error(val reason: String) : Result() {
     }
 }
 
-class Link(val linkType : KClass<out Any>) {
-    fun canSucceed(prec: Link): Boolean {
-        return prec.linkType.isSubclassOf(this.linkType)
+class Link(val linkTypes : Array<KClass<out Any>>) {
+    fun canSucceed(precClazz: KClass<out Any>): Boolean {
+        return this.linkTypes.any {
+            this.canSucceedClass(precClazz, it)
+        }
     }
 
-    fun canPreced(prec: Link): Boolean = prec.canSucceed(this)
+    private fun canSucceedClass(prec: KClass<out Any>,
+                                succ: KClass<out Any>): Boolean {
+        return prec.isSubclassOf(succ)
+    }
 }
 
 interface Constraint<T> {
@@ -181,7 +186,7 @@ data class VersionedIdentifier(
 open class ConnectorDesc(
     var identifier: VersionedIdentifier,
     val intput: Link,
-    val output: Link,
+    val outputClass: KClass<out Any>,
     val config: ConfigDescription,
     val icon : () -> Image,
     val builder : (Config) -> Connector
@@ -195,7 +200,7 @@ open class ConnectorDesc(
     }
 
     fun canSucceed(prec : ConnectorDesc) {
-        this.intput.canSucceed(prec.output)
+        this.intput.canSucceed(prec.outputClass)
     }
 }
 

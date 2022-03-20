@@ -65,8 +65,8 @@ class LoaderKtTest {
     init {
       val desc = ConnectorDesc(
           VersionedIdentifier("testCNX", Version(listOf(1, 0))),
-          Link(Int::class),
-          Link(Nothing::class),
+          Link(arrayOf(Int::class)),
+          Nothing::class,
           ConfigDescription(ComposedType(Fields.Builder().build())),
           { Image("file:" + Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
       ) { c: Config -> FakeConnector(c) }

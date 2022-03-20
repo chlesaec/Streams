@@ -18,10 +18,10 @@ val csvConfigDescription = ConfigDescription(
 object CsvReaderDescriptor :
     ConnectorDesc(
         VersionedIdentifier("CSVReader", Version(listOf(1))),
-        Link(InputRecord::class),
-        Link(CSVRecord::class),
+        Link(arrayOf(InputRecord::class)),
+        CSVRecord::class,
         csvConfigDescription,
-        { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) },
+        { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./csv.png").path) },
         { c : Config -> CSVReaderConnector(c) }
     )
 {

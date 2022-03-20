@@ -21,8 +21,8 @@ internal class JobRunnerTest {
     fun compile() {
         val desc1 = ConnectorDesc(
             VersionedIdentifier("intGenerator", Version(listOf(1))),
-            Link(Nothing::class),
-            Link(Int::class),
+            Link(arrayOf(Nothing::class)),
+            Int::class,
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
         ) { c: Config -> IntGenerator(c) }
@@ -49,8 +49,8 @@ internal class JobRunnerTest {
 
         val desc2 = ConnectorDesc(
             VersionedIdentifier("intInc", Version(listOf(1))),
-            Link(Int::class),
-            Link(Int::class),
+            Link(arrayOf(Int::class)),
+            Int::class,
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
         ) { c: Config -> IntInc(c) }
@@ -59,8 +59,8 @@ internal class JobRunnerTest {
 
         val desc2Bis = ConnectorDesc(
             VersionedIdentifier("intDouble", Version(listOf(1, 0))),
-            Link(Int::class),
-            Link(Int::class),
+            Link(arrayOf(Int::class)),
+            Int::class,
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
         ) { c: Config -> IntDouble(c) }
@@ -69,8 +69,8 @@ internal class JobRunnerTest {
 
         val desc3 = ConnectorDesc(
             VersionedIdentifier("intReg", Version(listOf(1))),
-            Link(Int::class),
-            Link(Nothing::class),
+            Link(arrayOf(Int::class)),
+            Nothing::class,
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
         ) { c: Config -> IntReg(c) }

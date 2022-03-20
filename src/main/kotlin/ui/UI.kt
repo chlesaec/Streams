@@ -31,6 +31,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import runner.JobRunner
 import tornadofx.*
 import java.io.File
 import java.util.*
@@ -177,7 +178,9 @@ class NewLinkDragger(val canvas : Canvas,
 }
 
 
-class ConnectorsDialog(ownerStage : Stage, addJob : (String) -> Unit) {
+class ConnectorsDialog(val redraw : () -> Unit,
+                       private val ownerStage : Stage,
+                       val addJob : (String) -> Unit) {
     private val stage: Stage = Stage()
 
     init {
@@ -186,7 +189,8 @@ class ConnectorsDialog(ownerStage : Stage, addJob : (String) -> Unit) {
         val root = BorderPane()
 
         val names = FXCollections.observableArrayList(Connectors.names())
-        root.center = ListView(names)
+        val namesView = ListView(names)
+        root.center = namesView
 
         val cancelButton = Button("Cancel")
         val okButton = Button("Ok")
@@ -195,7 +199,11 @@ class ConnectorsDialog(ownerStage : Stage, addJob : (String) -> Unit) {
             this.stage.close()
         }
         okButton.onAction = EventHandler {
+            val name = namesView.selectionModel.selectedItem
+            addJob(name)
+            this.redraw()
             it.consume()
+
             this.stage.close()
         }
         root.bottom = HBox(1.4,
@@ -210,7 +218,6 @@ class ConnectorsDialog(ownerStage : Stage, addJob : (String) -> Unit) {
      */
     fun showAndWait(): String {
         stage.initModality(Modality.APPLICATION_MODAL)
-
         stage.showAndWait()
         return "Hello"
     }
@@ -238,7 +245,6 @@ class ConfigView(val comp : JobConnectorBuilder, val description: FieldType) {
     fun buildNode() : javafx.scene.Node {
         var configBuilder = this.comp.config
         return this.buildNode("", configBuilder, this.description)
-
     }
 
     private fun buildNode(name: String, config : Config.Builder, description: FieldType) : javafx.scene.Node {
@@ -265,7 +271,8 @@ class ConfigView(val comp : JobConnectorBuilder, val description: FieldType) {
                     Label(name),
                     *description.fields.fields().map {
                         val sub: Config.Builder = config.getSub(it.first) ?:
-                        config.addSub(it.first, Config.Builder())
+                        config // .addSub(it.first, Config.Builder())
+
                         this.buildNode(it.first, sub, it.second)
                     }.toTypedArray()
                 )
@@ -283,51 +290,17 @@ class ConfigView(val comp : JobConnectorBuilder, val description: FieldType) {
 
 class StudioView() : View("studio") {
     var jobView : JobView
-    var configView : ConfigView
+    var configView : ConfigView? = null
     var selectedConnector : JobConnectorBuilder? = null
     var selectedEdge : Pair<JobNodeBuilder, JobEdgeBuilder>? = null
     var job : JobBuilder
 
 
     init {
-        val iconUrl = Thread.currentThread().contextClassLoader.getResource("./icon1.png")
-// , Image("file:" + iconUrl.path)
-        val c1View = ComponentView(Coordinate(30.0, 30.0))
-        val c2View = ComponentView(Coordinate(220.0, 160.0))
-        val c3View = ComponentView(Coordinate(470.0, 290.0))
-
-        val l1 = JobLink(LinkView(Color.BLACK, 3.0))
-        val l2 = JobLink(LinkView(Color.BLACK, 3.0))
-
-        Image("file:" + iconUrl.path)
-        val descCon = ConnectorDesc(
-            VersionedIdentifier("intInc", Version(listOf(1))),
-            Link(Int::class),
-            Link(Int::class),
-            ConfigDescription(ComposedType(Fields.Builder().add("field1", StringType()).build())),
-            { Image("file:" + iconUrl.path) }
-        ) { c: Config -> VoidConnector(c) }
-        val c1 = JobConnectorBuilder("c1", "1", descCon, Config.Builder(), c1View)
-        val c2 = JobConnectorBuilder("c2", "2", descCon, Config.Builder(), c2View)
-        val c3 = JobConnectorBuilder("c3", "3s", descCon, Config.Builder(), c3View)
-
         val builder = GraphBuilder<JobConnectorBuilder, JobLink>();
-        val node1 = builder.addNode(c1);
-        node1.addNext(c2, l1).next.addNext(c3, l2)
 
         this.job = JobBuilder(builder)
         this.jobView = JobView(this.job)
-
-        val confRec = ComposedType(
-            Fields.Builder()
-                .add("f1", StringType())
-                .add("f2", StringType())
-                .build()
-        )
-        val config = Config.Builder()
-            .add("f1", "value1")
-            .add("f2", "value2")
-        this.configView = ConfigView(c1, confRec)
     }
 
     private fun draw(g : GraphicsContext) {
@@ -357,17 +330,32 @@ class StudioView() : View("studio") {
         }
     }
 
+    private fun run() {
+        this.job.build().run(JobRunner())
+    }
+
     override val root = borderpane {
         top = hbox {
             menubar {
                 menu("File") {
-                    menuitem("Load").setOnAction(this@StudioView::loadJob)
-                    menuitem("Save").setOnAction(this@StudioView::saveJob)
+                    item("Load").setOnAction(this@StudioView::loadJob)
+                    item("Save").setOnAction(this@StudioView::saveJob)
                 }
                 menu("Connectors") {
-                    menuitem("Load").setOnAction {
-                        val dialog = ConnectorsDialog(this@StudioView.currentStage ?: this@StudioView.primaryStage, this@StudioView::addConnector)
-                        dialog.showAndWait()
+                    item("Load").setOnAction {
+                        val res = this@borderpane.center
+                        if (res is Canvas) {
+                            val dialog = ConnectorsDialog(
+                                { this@StudioView.draw(res.graphicsContext2D) },
+                                this@StudioView.currentStage ?: this@StudioView.primaryStage,
+                                this@StudioView::addConnector
+                            )
+                            dialog.showAndWait()
+                        }
+                    }
+                    item("Run").setOnAction {
+                        println("Run")
+                        this@StudioView.run()
                     }
                 }
             }
@@ -381,7 +369,7 @@ class StudioView() : View("studio") {
             this@StudioView.draw(this.graphicsContext2D)
             this.addEventFilter(MouseEvent.MOUSE_PRESSED, this@StudioView::startDrag)
         }
-        right = this@StudioView.configView.buildNode()
+        right = this@StudioView.configView?.buildNode()
     }
 
     private fun addConnector(name: String) {
@@ -391,7 +379,7 @@ class StudioView() : View("studio") {
                 UUID.randomUUID().toString(),
                 cnx,
                 Config.Builder(),
-                ComponentView(Coordinate(3.0,10.0)))
+                ComponentView(Coordinate(40.0,40.0)))
             this.job.graph.addNode(cnxBuild)
         }
     }
@@ -443,7 +431,7 @@ class StudioView() : View("studio") {
             if (comp is JobNodeBuilder) {
                 val connector = comp.data
                 this.configView = ConfigView(connector, connector.connectorDesc.config.description)
-                root.right = this.configView.buildNode()
+                root.right = this.configView?.buildNode()
                 this.selectedConnector = connector
                 center.graphicsContext2D.clearRect(0.0, 0.0, center.width, center.height)
                 this.draw(center.graphicsContext2D)
