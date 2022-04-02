@@ -39,11 +39,20 @@ import java.util.*
 
 class ComponentDraw(val g : GraphicsContext) {
 
-    fun show(position : Coordinate, icon : Image) {
+    fun show(connector : JobConnectorBuilder) {
+        //this.view.position, this.connectorDesc.icon()
+        val icon = connector.connectorDesc.icon()
+        val position = connector.view.position
         this.g.drawImage(
             icon, position.x, position.y,
             icon.width, icon.height
         )
+        this.g.fill = Color.BLACK
+       // this.g.font = Font.
+        this.g.fillText("${connector.name} (${connector.connectorDesc.identifier.name})",
+            position.x,
+            position.y,
+            42.0)
     }
 
 }
@@ -75,7 +84,7 @@ class JobView(val jobBuilder: JobBuilder) {
         }
         this.jobBuilder.graph.nodes().forEach {
             val draw = ComponentDraw(g)
-            it.show(draw::show)
+            draw.show(it)
         }
     }
 
@@ -231,12 +240,18 @@ class LinkBuilder(val job : JobBuilder,
 
         val endComponent : JobNodeBuilder? = job.graph.nodesBuilder().filter {
             cnxNode : JobNodeBuilder ->
-            cnxNode != startComponent && cnxNode.data.inside(endPosition)
+            cnxNode != startComponent
+                    && cnxNode.data.inside(endPosition)
+                    && isCompatible(startComponent, cnxNode)
         }
             .firstOrNull()
        if (endComponent is NodeBuilder<JobConnectorBuilder, JobLink>) {
            startComponent.addNext(endComponent, this.linkBuilder())
        }
+    }
+
+    private fun isCompatible(start: JobNodeBuilder, end: JobNodeBuilder) : Boolean {
+        return end.data.connectorDesc.intput.canSucceed(start.data.connectorDesc.outputClass)
     }
 }
 

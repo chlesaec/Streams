@@ -28,7 +28,7 @@ val localFileConfigDescription = ConfigDescription(
 object LocalFileDescriptor :
         ConnectorDesc(
             VersionedIdentifier("LocalFile", Version(listOf(1))),
-            Link(arrayOf(Nothing::class)),
+            Link(arrayOf()),
             InputRecord::class,
             localFileConfigDescription,
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./iconFiles.png").path) },

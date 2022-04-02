@@ -25,7 +25,7 @@ val localFileOutputConfigDescription = ConfigDescription(
 object LocalFileOutputDescriptor :
     ConnectorDesc(
         VersionedIdentifier("LocalFileOutput", Version(listOf(1))),
-        Link(arrayOf(ByteReader::class, ByteReaderGetter::class)),
+        Link(arrayOf(ByteReader::class, InputRecord::class)),
         Nothing::class,
         localFileOutputConfigDescription,
         { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png").path) },
