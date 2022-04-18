@@ -160,16 +160,20 @@ class NewLinkDragger(val canvas : Canvas,
         val img = component.data.connectorDesc.icon()
         val size = Coordinate(img.width, img.height)
         this.startPosition = component.data.view.center(size)
+        this.draw(this.startPosition)
     }
 
     private fun dragMoved(evt : MouseEvent) {
         val endPosition = Coordinate(evt.x, evt.y)
+        this.draw(endPosition)
+        evt.consume()
+    }
+
+    private fun draw(pos : Coordinate) {
         this.canvas.graphicsContext2D.clearRect(0.0, 0.0, this.canvas.width, this.canvas.height)
         this.show(this.canvas.graphicsContext2D)
 
-        ArrowView().drawArrow(this.canvas.graphicsContext2D, Color.BLACK, 3.0, this.startPosition, endPosition)
-
-        evt.consume()
+        ArrowView().drawArrow(this.canvas.graphicsContext2D, Color.BLACK, 3.0, this.startPosition, pos)
     }
 
     private fun endDrag(evt : MouseEvent) {
@@ -264,6 +268,20 @@ class ConfigView(val comp : JobConnectorBuilder, val description: FieldType) {
 
     private fun buildNode(name: String, config : Config.Builder, description: FieldType) : javafx.scene.Node {
         val valueNode: javafx.scene.Node = when (description) {
+            is BooleanType -> {
+                var value = config.get(name)
+                if (value == null) {
+                    value = "true"
+                    config.add(name, "true")
+                }
+                val check = CheckBox()
+                check.isSelected = "true".equals(value, true)
+                check.onKeyTyped = EventHandler {
+                        evt : KeyEvent ->
+                    config.add(name, check.isSelected.toString())
+                }
+                HBox(Label(name), check)
+            }
             is SimpleType -> {
                 var value = config.get(name)
                 if (value == null) {
@@ -273,10 +291,7 @@ class ConfigView(val comp : JobConnectorBuilder, val description: FieldType) {
                 val textField = TextField(value)
                 textField.onKeyTyped = EventHandler {
                     evt : KeyEvent ->
-                        //println("Action handler")
-                        config.add(name, textField.text)
-                        println("--> '${textField.text}' to '${config.get(name)}' for '${name}' ")
-
+                    config.add(name, textField.text)
                 }
                 HBox(Label(name), textField)
             }
