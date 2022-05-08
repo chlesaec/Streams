@@ -24,7 +24,7 @@ val localFileOutputConfigDescription = ConfigDescription(
 
 object LocalFileOutputDescriptor :
     ConnectorDesc(
-        VersionedIdentifier("LocalFileOutput", Version(listOf(1))),
+        VersionedIdentifier("Local File Output", Version(listOf(1))),
         Link(arrayOf(ByteReader::class, InputRecord::class)),
         Nothing::class,
         localFileOutputConfigDescription,

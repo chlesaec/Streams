@@ -9,8 +9,7 @@ import configuration.Config
 import connectors.*
 import javafx.scene.image.Image
 import java.io.InputStream
-import java.nio.file.Files
-import java.nio.file.Path
+import java.nio.file.*
 
 
 typealias InputStreamConsumer = (InputStream) -> Unit
@@ -33,7 +32,7 @@ val localFileConfigDescription = ConfigDescription(
 
 object LocalFileDescriptor :
         ConnectorDesc(
-            VersionedIdentifier("LocalFile", Version(listOf(1))),
+            VersionedIdentifier("Local File Input", Version(listOf(1))),
             Link(arrayOf()),
             InputRecord::class,
             localFileConfigDescription,
@@ -50,32 +49,39 @@ class LocalFileConnector(config : Config) : Connector(config) {
         val root = config.get("root") ?: ""
         val rootPath = Path.of(root)
         val pattern = config.get("pattern") ?: ""
+        val sub : Boolean = config.get("subFolder")?.toBoolean() ?: false
 
-        this.exploreDirectory(rootPath, root, pattern, output)
+        // create a matcher
+        val fs: FileSystem = rootPath.getFileSystem()
+        val matcher: PathMatcher = fs.getPathMatcher("glob:$pattern")
+
+        this.exploreDirectory(rootPath, root, matcher, sub, output)
     }
 
-    private fun exploreDirectory(path : Path, root : String, pattern: String, output: (Any?) -> Unit) {
-        val dirStream = Files.newDirectoryStream(path, pattern)
+    private fun exploreDirectory(path: Path, root: String, matcher: PathMatcher, sub: Boolean, output: (Any?) -> Unit) {
+        val dirStream = Files.newDirectoryStream(path)
         dirStream.forEach {
-            this.explore(it, root, pattern, output)
+            this.explore(it, root, matcher, sub, output)
         }
     }
 
-    private fun explore(path : Path, root : String, pattern: String, output: (Any?) -> Unit) {
+    private fun explore(path : Path, root : String, matcher: PathMatcher, sub:Boolean, output: (Any?) -> Unit) {
         if (path.toFile().isFile) {
-            val record = InputRecord(
-                "localIO",
-                root ?: "",
-                path.parent.toFile().path.substring((root ?: "").length),
-                path.toFile().name
-            )
-            { consumer: InputStreamConsumer ->
-                Files.newInputStream(path).use(consumer)
+            if (matcher.matches(path.fileName)) {
+                val record = InputRecord(
+                    "localIO",
+                    root ?: "",
+                    path.parent.toFile().path.substring((root ?: "").length),
+                    path.toFile().name
+                )
+                { consumer: InputStreamConsumer ->
+                    Files.newInputStream(path).use(consumer)
+                }
+                output(record)
             }
-            output(record)
         }
-        else if (path.toFile().isDirectory) {
-            this.exploreDirectory(path, root, pattern, output)
+        else if (path.toFile().isDirectory && sub) {
+            this.exploreDirectory(path, root, matcher, sub, output)
         }
     }
 }

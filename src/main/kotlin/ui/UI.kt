@@ -419,9 +419,10 @@ class StudioView() : View("studio") {
 
         val chooser = FileChooser()
         chooser.title = "Save current job"
-        chooser.extensionFilters.add(FileChooser.ExtensionFilter("json", "json"))
+        val extensionFilter = FileChooser.ExtensionFilter("job json file", "*.json")
+        chooser.extensionFilters.add(extensionFilter)
         chooser.initialDirectory = File(System.getenv("HOME") ?: "")
-        chooser.selectedExtensionFilter = FileChooser.ExtensionFilter("json", "json")
+        chooser.selectedExtensionFilter = extensionFilter
         val loadFile : File? = chooser.showOpenDialog(this.currentWindow)
 
         if (loadFile is File) {
