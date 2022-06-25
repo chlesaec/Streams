@@ -90,6 +90,14 @@ abstract class SimpleType : FieldType {
     }
 }
 
+object EmptyType: FieldType {
+    override fun valid(value: JsonElement): Boolean = false
+
+    override fun valid(value: String): Boolean = false
+
+    override fun valid(value: Config): Boolean = false
+}
+
 class Fields
 private constructor(
         private val properties: Map<String, FieldType>

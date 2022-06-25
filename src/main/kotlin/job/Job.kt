@@ -20,8 +20,29 @@ class ComponentView(var position : Coordinate = Coordinate(0.0, 0.0)) {
     }
 }
 
+interface LinkDrawer {
+    fun draw()
+
+    fun updateCounter()
+}
+
+
+
 class LinkView(var color : Color,
-               var width : Double)
+               var width : Double) {
+    var drawer : LinkDrawer? = null
+
+    var count : Long = 0
+
+    fun onEvent(e: Event) {
+        if (e is ItemEvent) {
+            count++
+            if (drawer != null) {
+
+            }
+        }
+    }
+}
 
 @Serializable
 class JobConnector(val connectorDesc: ConnectorDesc,
@@ -31,7 +52,15 @@ class JobConnector(val connectorDesc: ConnectorDesc,
     }
 }
 
-class JobLink(val view : LinkView)
+sealed interface Event
+object ItemEvent : Event
+object EndEvent : Event
+
+class JobLink(val view : LinkView) {
+    fun onEvent(e: Event) {
+        view.drawer?.updateCounter()
+    }
+}
 
 class JobConnectorBuilder(val name : String,
                           val identifier : String,

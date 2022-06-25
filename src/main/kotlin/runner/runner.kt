@@ -3,9 +3,8 @@ package runner
 import functions.FunctionConsumer
 import graph.Node
 import javafx.application.Application.launch
+import job.*
 import job.Job
-import job.JobConnector
-import job.JobLink
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import java.util.*
@@ -31,8 +30,16 @@ class RunnerItem(val function : FunctionConsumer,
 
 class EndRunner(val identifier : UUID)
 
+interface EventHandler {
+    fun elementReceived(element: Any?)
+}
+
+class LinkedRunnerItem(
+    val link: JobLink?,
+    val runner : RunnerItemChannel)
+
 class RunnerItemChannel(val function : FunctionConsumer,
-                        val nexts : List<RunnerItemChannel>) {
+                        val nexts : List<LinkedRunnerItem>) {
     val queue = Channel<Any?> {}
 
     val identifier = UUID.randomUUID()
@@ -50,7 +57,7 @@ class RunnerItemChannel(val function : FunctionConsumer,
     }
 
     fun initialize() {
-        this.nexts.forEach { it.declarePrecedent(this.identifier) }
+        this.nexts.forEach { it.runner.declarePrecedent(this.identifier) }
     }
 
     fun declarePrecedent(identifier : UUID) {
@@ -68,7 +75,8 @@ class RunnerItemChannel(val function : FunctionConsumer,
                         function.run(element) { targetElement: Any? ->
                             GlobalScope.launch {
                                 nexts.forEach {
-                                    it.execute(targetElement)
+                                    it.link?.onEvent(ItemEvent)
+                                    it.runner.execute(targetElement)
                                 }
                             }
                         }
@@ -79,18 +87,21 @@ class RunnerItemChannel(val function : FunctionConsumer,
                 }
                 else {
                     val terminate = EndRunner(this@RunnerItemChannel.identifier)
-                    this@RunnerItemChannel.nexts.forEach { it.execute(terminate) }
+                    this@RunnerItemChannel.nexts.forEach {
+                        it.link?.onEvent(EndEvent)
+                        it.runner.execute(terminate)
+                    }
                 }
             }
         }
     }
 }
 
-class RunableJob(val startNodes : List<RunnerItemChannel>) {
+class RunableJob(val startNodes : List<LinkedRunnerItem>) {
     fun execute() {
         runBlocking {
             val identifier = UUID.randomUUID()
-            startNodes.forEach {
+            startNodes.map(LinkedRunnerItem::runner).forEach {
                 it.declarePrecedent(identifier)
                 it.execute(null)
                 it.execute(EndRunner(identifier))
@@ -107,19 +118,18 @@ class JobRunner() : Runner {
             Pair(it.key, f)
         }
 
-        val runners = HashMap<UUID, RunnerItemChannel>()
+        val runners = HashMap<UUID, LinkedRunnerItem>()
         val allNodes: MutableSet<UUID> = job.graph.nodes.keys.toMutableSet()
-        while (allNodes.isNotEmpty()) {
-            val next: UUID = allNodes.elementAt(0)
-            val node: Node<JobConnector, JobLink>? = job.graph.nodes[next]
+        for (node in job.graph.startNodes()) {
             if (node is Node<JobConnector, JobLink>) {
                 this.buildRunner(runners,
                     node,
+                    null,
                     connectors,
                     allNodes)
             }
         }
-        runners.values.forEach(RunnerItemChannel::initialize)
+        runners.values.map(LinkedRunnerItem::runner).forEach(RunnerItemChannel::initialize)
         val startNode = job.graph.nodes
             .filter { it.value.precs.isEmpty() }
             .map { runners[ it.key ]!! }
@@ -127,21 +137,23 @@ class JobRunner() : Runner {
         return RunableJob(startNode)::execute
     }
 
-    private fun buildRunner(runners : MutableMap<UUID, RunnerItemChannel>,
+    private fun buildRunner(runners : MutableMap<UUID, LinkedRunnerItem>,
                             node : Node<JobConnector, JobLink>,
+                            linkTo: JobLink?,
                             connectors : Map<UUID, FunctionConsumer>,
                             allNode : MutableSet<UUID>) {
-        val nextRunners : List<RunnerItemChannel> = node.nexts.map {
+        val nextRunners : List<LinkedRunnerItem> = node.nexts.map {
             val nextNode = it.end
             if (!runners.containsKey(nextNode.identifier)) {
-                this.buildRunner(runners, nextNode, connectors, allNode)
+                this.buildRunner(runners, nextNode, it.data, connectors, allNode)
             }
             runners[nextNode.identifier]
         }
             .filterNotNull()
             .toList();
         val item = RunnerItemChannel(connectors[node.identifier]!!, nextRunners)
+        val linkedRunner = LinkedRunnerItem(linkTo, item)
         allNode.remove(node.identifier)
-        runners[node.identifier] = item
+        runners[node.identifier] = linkedRunner
     }
 }
