@@ -21,6 +21,7 @@ import javafx.scene.input.KeyEvent
 import javafx.scene.input.MouseEvent
 import javafx.scene.layout.*
 import javafx.scene.paint.Color
+import javafx.scene.text.Font
 import javafx.stage.FileChooser
 import javafx.stage.Modality
 import javafx.stage.Stage
@@ -33,6 +34,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import runner.JobRunner
 import tornadofx.*
+
 import java.io.File
 import java.util.*
 
@@ -60,11 +62,10 @@ class ComponentDraw(val g : GraphicsContext) {
             icon.width, icon.height
         )
         this.g.fill = Color.BLACK
-       // this.g.font = Font.
-        this.g.fillText("${connector.name} (${connector.connectorDesc.identifier.name})",
+        this.g.font = Font.font("Verdana", 14.0)
+        this.g.fillText("${connector.name}\n(${connector.connectorDesc.identifier.name})",
             position.x,
-            position.y,
-            42.0)
+            position.y - 10.0)
     }
 
 }
@@ -115,21 +116,24 @@ class LinkUI(val g : GraphicsContext,
 
     override fun updateCounter() {
         println("start update counter")
-        val count = this.link.count++
+        this.link.count++
         val middlePoint = (startGetter() + endGetter()) / 2.0
-        this.g.fill = Color.WHITE
-        this.g.fillRect(middlePoint.x - 10,
-            middlePoint.y - 10,
-            middlePoint.x + 10,
-            middlePoint.y + 10
-        )
-        this.g.fill = Color.BLACK
-        this.g.fillText(
-            count.toString(),
-            middlePoint.x,
-            middlePoint.y,
-            42.0
-        )
+        ge.run {
+            this.g.fill = Color.WHITE
+            this.g.fillRect(middlePoint.x - 5,
+                middlePoint.y - 10,
+                15.0,
+                15.0
+            )
+            this.g.fill = Color.BLACK
+            this.g.font = Font.font("Verdana", 8.0)
+            this.g.fillText(
+                 this.link.count.toString(),
+                 middlePoint.x,
+                 middlePoint.y
+            )
+        }
+
         println("end update counter")
     }
 }
@@ -487,6 +491,7 @@ class StudioView() : View("studio") {
             this.addEventFilter(MouseEvent.MOUSE_PRESSED, this@StudioView::startDrag)
         }
         right = this@StudioView.configView?.buildNode() ?: HBox(Label("Empty"))
+        right.minWidth(120.0)
     }
 
     private fun addConnector(name: String) {
