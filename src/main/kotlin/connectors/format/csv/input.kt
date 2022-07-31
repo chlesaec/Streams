@@ -4,6 +4,7 @@ import configuration.Config
 import connectors.*
 import connectors.io.InputRecord
 import javafx.scene.image.Image
+import job.JobConnectorData
 import org.apache.commons.csv.CSVFormat
 import org.apache.commons.csv.CSVRecord
 import java.io.InputStreamReader
@@ -22,7 +23,7 @@ object CsvReaderDescriptor :
         CSVRecord::class,
         csvConfigDescription,
         { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./csv.png").path) },
-        { c : Config -> CSVReaderConnector(c) }
+        { j: JobConnectorData, c : Config -> CSVReaderConnector(c) }
     )
 {
     init {

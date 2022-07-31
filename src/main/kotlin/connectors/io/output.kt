@@ -3,6 +3,7 @@ package connectors.io
 import configuration.Config
 import connectors.*
 import javafx.scene.image.Image
+import job.JobConnectorData
 import java.io.*
 import java.nio.file.Files
 import java.nio.file.Path
@@ -29,7 +30,7 @@ object LocalFileOutputDescriptor :
         Nothing::class,
         localFileOutputConfigDescription,
         { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png").path) },
-        { c : Config -> LocalFileOutputConnector(c) }
+        { j: JobConnectorData, c : Config -> LocalFileOutputConnector(c) }
     ) {
     init {
         Connectors.register(this)

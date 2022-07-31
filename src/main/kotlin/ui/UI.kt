@@ -401,6 +401,7 @@ class StudioView() : View("studio") {
     private var selectedConnector : JobConnectorBuilder? = null
     private var selectedEdge : Pair<JobNodeBuilder, JobEdgeBuilder>? = null
     private var job : JobBuilder
+    private var jobConfig = JobConfig()
 
     private var canvas: Canvas? = null
 
@@ -451,7 +452,8 @@ class StudioView() : View("studio") {
     }
 
     private fun run() {
-        this.job.build().run(JobRunner())
+        //JobConfig
+        this.job.build(this.jobConfig).run(JobRunner())
     }
 
     override val root = borderpane {
@@ -497,6 +499,19 @@ class StudioView() : View("studio") {
     private fun addConnector(name: String) {
         val cnx: ConnectorDesc? = Connectors.get(name)
         if (cnx is ConnectorDesc) {
+
+            var n = name
+            val names = this.job.graph.nodes()
+                .map(JobConnectorBuilder::name)
+                .filter { it.startsWith(name) }
+                .toSet()
+            var index = 1
+            while (names.contains(n)) {
+                n = name + index
+                index++
+            }
+
+
             val cnxBuild = JobConnectorBuilder(name,
                 UUID.randomUUID().toString(),
                 cnx,

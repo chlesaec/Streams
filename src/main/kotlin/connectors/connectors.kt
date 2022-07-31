@@ -3,9 +3,14 @@ package connectors
 import configuration.Config
 import functions.FunctionConsumer
 import javafx.scene.image.Image
+import job.JobConnectorData
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import java.io.File
+import java.net.URL
+import java.net.URLClassLoader
+import java.nio.file.Path
 import java.util.*
 
 import kotlin.collections.HashMap
@@ -197,20 +202,41 @@ open class ConnectorDesc(
     val outputClass: KClass<out Any>,
     val config: ConfigDescription,
     val icon : () -> Image,
-    val builder : (Config) -> Connector
+    val builder : (JobConnectorData, Config) -> Connector
 ) {
 
-    fun build(c: Config): FunctionConsumer {
+    fun build(j: JobConnectorData, c: Config): FunctionConsumer {
         if (!this.config.isCompliant(c)) {
             throw IllegalStateException("config not compliant")
         }
-        return this.builder(c)
+        return this.builder(j, c)
     }
 
     fun canSucceed(prec : ConnectorDesc) {
         this.intput.canSucceed(prec.outputClass)
     }
 }
+
+class JobConfig() {
+    private var classLoader: ClassLoader? = null
+
+    var rootFolder: Path = Path.of(".")
+
+    fun buildClassLoader(urls: Array<URL>) : ClassLoader {
+        if (this.classLoader == null) {
+            this.classLoader = URLClassLoader(urls, JobConfig::class.java.classLoader)
+        }
+        return this.classLoader!!
+    }
+
+    fun generateCodeFile() : File {
+        return File(rootFolder.toFile(), "xx.kt")
+    }
+}
+
+class ConnectorConfig(
+    val jobConfig: JobConfig,
+    val config: Config)
 
 
 abstract class Connector(

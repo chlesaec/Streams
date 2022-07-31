@@ -5,6 +5,7 @@ import connectors.*
 import javafx.scene.image.Image
 import job.JobBuilder
 import job.JobConnectorBuilder
+import job.JobConnectorData
 import kotlinx.serialization.json.*
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -69,7 +70,7 @@ class LoaderKtTest {
           Nothing::class,
           ConfigDescription(ComposedType(Fields.Builder().build())),
           { Image("file:" + Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
-      ) { c: Config -> FakeConnector(c) }
+      ) { j: JobConnectorData, c: Config -> FakeConnector(c) }
       Connectors.register(desc)
     }
 
@@ -85,7 +86,8 @@ class LoaderKtTest {
         val loader = JobLoader()
         val builder : JobBuilder = loader.loadJob(jsonJob.jsonObject)
         Assertions.assertEquals(3, builder.graph.nodes().size)
-        val job = builder.build()
+        val cfg = JobConfig()
+        val job = builder.build(cfg)
         Assertions.assertEquals(2, job.graph.edges.size)
 
         val saver = JobSaver()

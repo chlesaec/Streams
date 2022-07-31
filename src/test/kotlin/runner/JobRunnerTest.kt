@@ -25,7 +25,7 @@ internal class JobRunnerTest {
             Int::class,
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
-        ) { c: Config -> IntGenerator(c) }
+        ) { j: JobConnectorData,  c: Config -> IntGenerator(c) }
 
         val conf = Config.Builder()
             .add("start", "100")
@@ -33,15 +33,15 @@ internal class JobRunnerTest {
             .add("step", "2")
             .build()
         val view = ComponentView(Coordinate(2.0, 4.0));
-
-        val c1 = JobConnector(desc1, conf)
+        val cdata = JobConnectorData(JobConfig(), desc1, "name", "id")
+        val c1 = JobConnector(cdata, conf)
 
         val confBis = Config.Builder()
             .add("start", "20")
             .add("end", "60")
             .add("step", "1")
             .build()
-        val c1Bis = JobConnector(desc1, confBis)
+        val c1Bis = JobConnector(cdata, confBis)
 
         val graphJobBuilder = GraphBuilder<JobConnector, JobLink>()
         val node1 = graphJobBuilder.addNode(c1)
@@ -53,8 +53,9 @@ internal class JobRunnerTest {
             Int::class,
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
-        ) { c: Config -> IntInc(c) }
-        val c2 = JobConnector(desc2, Config.Builder().build())
+        ) { j: JobConnectorData, c: Config -> IntInc(c) }
+        val cdata2 = JobConnectorData(JobConfig(), desc2, "name", "id")
+        val c2 = JobConnector(cdata2, Config.Builder().build())
         val node2 = graphJobBuilder.addNode(c2)
 
         val desc2Bis = ConnectorDesc(
@@ -63,8 +64,9 @@ internal class JobRunnerTest {
             Int::class,
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
-        ) { c: Config -> IntDouble(c) }
-        val c2Bis = JobConnector(desc2Bis, Config.Builder().build())
+        ) { j: JobConnectorData, c: Config -> IntDouble(c) }
+        val cdata2Bis = JobConnectorData(JobConfig(), desc2Bis, "name", "id")
+        val c2Bis = JobConnector(cdata2Bis, Config.Builder().build())
         val node2Bis = graphJobBuilder.addNode(c2Bis)
 
         val desc3 = ConnectorDesc(
@@ -73,8 +75,9 @@ internal class JobRunnerTest {
             Nothing::class,
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
-        ) { c: Config -> IntReg(c) }
-        val c3 = JobConnector(desc3, Config.Builder().build())
+        ) { j: JobConnectorData, c: Config -> IntReg(c) }
+        val cdata3 = JobConnectorData(JobConfig(), desc3, "name", "id")
+        val c3 = JobConnector(cdata3, Config.Builder().build())
         val node3 = graphJobBuilder.addNode(c3)
 
         node1.addNext(node2, JobLink(LinkView(Color.BLUE, 3.0)))

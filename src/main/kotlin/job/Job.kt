@@ -3,6 +3,7 @@ package job
 import commons.Coordinate
 import configuration.Config
 import connectors.ConnectorDesc
+import connectors.JobConfig
 import functions.FunctionConsumer
 import graph.EdgeBuilder
 import graph.Graph
@@ -44,11 +45,20 @@ class LinkView(var color : Color,
     }
 }
 
+class JobConnectorData(val jobConfig: JobConfig,
+                       val connectorDesc: ConnectorDesc,
+                       val name: String,
+                       val identifier: String) {
+    fun buildConnector(config : Config) : FunctionConsumer {
+        return this.connectorDesc.build(this, config)
+    }
+}
+
 @Serializable
-class JobConnector(val connectorDesc: ConnectorDesc,
+class JobConnector(val connectorData: JobConnectorData,
                    val config : Config) {
     fun buildConnector() : FunctionConsumer {
-        return this.connectorDesc.build(this.config)
+        return this.connectorData.buildConnector(this.config)
     }
 }
 
@@ -62,12 +72,17 @@ class JobLink(val view : LinkView) {
     }
 }
 
+
+
 class JobConnectorBuilder(val name : String,
                           val identifier : String,
                           val connectorDesc: ConnectorDesc,
                           var config : Config.Builder,
                           val view : ComponentView) {
-    fun toJobConnector() : JobConnector = JobConnector(this.connectorDesc, this.config.build())
+    fun toJobConnector(job: JobConfig) : JobConnector {
+        val connectorData = JobConnectorData(job, this.connectorDesc, this.name, this.identifier)
+        return JobConnector(connectorData, this.config.build())
+    }
 
     fun center() : Coordinate {
         val icon = this.connectorDesc.icon()
@@ -92,8 +107,11 @@ typealias JobNodeBuilder = NodeBuilder<JobConnectorBuilder, JobLink>
 typealias JobEdgeBuilder = EdgeBuilder<JobConnectorBuilder, JobLink>
 
 class JobBuilder(val graph : JobGraphBuilder) {
-    fun build() : Job {
-        val jobGraph : Graph<JobConnector, JobLink> = this.graph.build().map(JobConnectorBuilder::toJobConnector) { link: JobLink -> link }
+    fun build(cfg: JobConfig) : Job {
+        val jobGraph : Graph<JobConnector, JobLink> = this.graph
+            .build()
+            .map({ j: JobConnectorBuilder -> j.toJobConnector(cfg) })
+        { link: JobLink -> link }
         return Job(jobGraph)
     }
 }

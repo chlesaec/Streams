@@ -1,7 +1,9 @@
 package connectors.io
 
 import configuration.Config
+import connectors.JobConfig
 import functions.FunctionConsumer
+import job.JobConnectorData
 import org.junit.jupiter.api.Test
 import java.io.InputStream
 import java.net.URL
@@ -20,7 +22,9 @@ internal class LocalFileConnectorTest {
             .add("subFolder", "false")
             .build();
 
-        val f: FunctionConsumer = LocalFileDescriptor.build(config)
+        val jcf = JobConnectorData(JobConfig(), LocalFileDescriptor, "n1", "id1")
+
+        val f: FunctionConsumer = LocalFileDescriptor.build(jcf, config)
         var content : String = ""
         val finput = {
             input : InputStream ->

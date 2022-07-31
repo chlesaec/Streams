@@ -8,6 +8,7 @@ import com.amazonaws.services.s3.model.GetObjectRequest
 import configuration.Config
 import connectors.*
 import javafx.scene.image.Image
+import job.JobConnectorData
 import java.io.InputStream
 import java.nio.file.*
 
@@ -37,7 +38,7 @@ object LocalFileDescriptor :
             InputRecord::class,
             localFileConfigDescription,
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./iconFiles.png").path) },
-            { c : Config -> LocalFileConnector(c) })
+            { j: JobConnectorData,  c : Config -> LocalFileConnector(c) })
          {
             init {
                 Connectors.register(this)
