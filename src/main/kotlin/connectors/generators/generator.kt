@@ -1,13 +1,34 @@
 package connectors.generators
 
+import kotlinx.collections.immutable.toImmutableList
 import java.io.File
+import java.io.FileOutputStream
 import java.io.OutputStream
 
-class FileGenerator() {
+class SourceFileGenerator(val packageName: String,
+    val fileName: String) {
+
+    private val classes = mutableListOf<ClassGenerator>()
 
     fun generate(targetFolder: File) : File {
-        //TODO
-        return targetFolder
+        val f = File(targetFolder, this.fileName)
+        if (f.exists()) {
+            f.delete()
+        }
+        FileOutputStream(f).use {
+            out: FileOutputStream ->
+            out.write("package ${this.packageName}${System.lineSeparator()}${System.lineSeparator()}".toByteArray())
+            this.classes.forEach { it.generateCode(out) }
+        }
+        return f
+    }
+
+    fun addClass(cg: ClassGenerator) {
+        this.classes.add(cg)
+    }
+
+    fun classes() : List<ClassGenerator> {
+        return this.classes.toImmutableList()
     }
 }
 
@@ -46,6 +67,10 @@ class ClassGenerator(val name: String) {
         return this
     }
 
+    fun fields() : Iterable<Parameter> {
+        return this.fields.asIterable()
+    }
+
     fun addMethod(m: MethodGenerator) : ClassGenerator {
         this.methods.add(m)
         return this
@@ -58,15 +83,24 @@ class CompanionBuilderGenerator() {
 
     fun generate(out: OutputStream) {
         out.write("${System.lineSeparator()}\tcompanion object Builder {".toByteArray())
+        methods.forEach {
+            out.write("${System.lineSeparator()}".toByteArray())
+            it.generateCode(out)
+            out.write("${System.lineSeparator()}".toByteArray())
+        }
         out.write("${System.lineSeparator()}\t}${System.lineSeparator()}".toByteArray());
     }
 
+    fun addMethod(m: MethodGenerator) : CompanionBuilderGenerator {
+        this.methods.add(m)
+        return this
+    }
 
 }
 
 class Parameter(val name: String, val type: String) {
     fun generateCode(out: OutputStream) {
-        out.write("val ${this.name}: ${type}".toByteArray())
+        out.write("val ${this.name}: ${type}?".toByteArray())
     }
 
     fun generateForMethod(out: OutputStream) {
@@ -77,7 +111,7 @@ class Parameter(val name: String, val type: String) {
 class MethodGenerator(val name: String) {
     private val lines = mutableListOf<String>()
 
-    val returnType: String? = null
+    var returnType: String? = null
 
     private val inputParams = mutableListOf<Parameter>()
 
@@ -103,6 +137,15 @@ class MethodGenerator(val name: String) {
 
     fun addLines(l : Array<String>) {
         l.forEach(this.lines::add)
+    }
+
+    fun addLine(l : String) {
+        this.lines.add(l)
+    }
+
+    fun addInputParam(p : Parameter) : MethodGenerator {
+        this.inputParams.add(p)
+        return this
     }
 }
 

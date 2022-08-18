@@ -1,12 +1,17 @@
 package connectors
 
 import configuration.Config
+import connectors.db.SimpleKotlinCompilerMessageCollector
 import functions.FunctionConsumer
 import javafx.scene.image.Image
 import job.JobConnectorData
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import org.jetbrains.kotlin.cli.common.ExitCode
+import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
+import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
+import org.jetbrains.kotlin.config.Services
 import java.io.File
 import java.net.URL
 import java.net.URLClassLoader
@@ -205,7 +210,7 @@ open class ConnectorDesc(
     val builder : (JobConnectorData, Config) -> Connector
 ) {
 
-    fun build(j: JobConnectorData, c: Config): FunctionConsumer {
+    fun build(j: JobConnectorData, c: Config): Connector {
         if (!this.config.isCompliant(c)) {
             throw IllegalStateException("config not compliant")
         }
@@ -215,23 +220,48 @@ open class ConnectorDesc(
     fun canSucceed(prec : ConnectorDesc) {
         this.intput.canSucceed(prec.outputClass)
     }
+
 }
 
 class JobConfig() {
-    private var classLoader: ClassLoader? = null
+    val classLoader: ClassLoader by lazy {
+        this.sources.forEach(this::compile)
+        val urlClasses : Array<URL> = Array(1) {
+            this.targetForlder().toURI().toURL()
+        }
+        URLClassLoader(urlClasses, JobConfig::class.java.classLoader)
+    }
+
+    private val sources = mutableListOf<File>()
 
     var rootFolder: Path = Path.of(".")
 
-    fun buildClassLoader(urls: Array<URL>) : ClassLoader {
-        if (this.classLoader == null) {
-            this.classLoader = URLClassLoader(urls, JobConfig::class.java.classLoader)
-        }
-        return this.classLoader!!
+    fun addSource(source: File) {
+        this.sources.add(source)
     }
 
-    fun generateCodeFile() : File {
-        return File(rootFolder.toFile(), "xx.kt")
+    fun loadClass(name: String) : Class<*> {
+        return this.classLoader.loadClass(name)
     }
+
+    private fun compile(source: File) : ExitCode {
+        val compilerArguments = K2JVMCompilerArguments();
+        compilerArguments.freeArgs = listOf(source.path)
+        compilerArguments.destination = targetForlder().path
+        compilerArguments.jvmTarget = "11"
+        compilerArguments.classpath = System.getProperty("java.class.path")
+        compilerArguments.noStdlib = true
+        val messageCollector = SimpleKotlinCompilerMessageCollector()
+        val exitCode: ExitCode = K2JVMCompiler().exec(
+            messageCollector,
+            Services.Builder().build(),
+            compilerArguments)
+        return exitCode
+    }
+
+    private fun targetForlder() : File =
+        File(rootFolder.toFile(),  "/generate")
+
 }
 
 class ConnectorConfig(
@@ -243,6 +273,7 @@ abstract class Connector(
     val config: Config
 ) : FunctionConsumer {
 
+    open fun initialize(config: Config, j: JobConnectorData) {}
 }
 
 object Connectors {

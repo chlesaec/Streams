@@ -3,26 +3,17 @@ package connectors.db
 import com.zaxxer.hikari.HikariDataSource
 import configuration.Config
 import connectors.*
-import connectors.generators.ClassGenerator
-import connectors.generators.Parameter
+import connectors.generators.*
 import connectors.io.InputRecord
-import connectors.io.LocalFileConnector
 import javafx.scene.image.Image
 import job.JobConnectorData
-import org.jetbrains.kotlin.cli.common.ExitCode
-import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
-import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
-import org.jetbrains.kotlin.config.Services
-import java.io.File
-import java.net.URLClassLoader
 import java.sql.PreparedStatement
 import java.sql.ResultSet
 import java.sql.ResultSetMetaData
 import javax.sql.DataSource
-import kotlin.reflect.KClass
 import kotlin.reflect.full.companionObjectInstance
 import kotlin.reflect.full.declaredFunctions
 
@@ -45,61 +36,36 @@ object DBDescriptor :
         InputRecord::class,
         databaseConfigDescription,
         { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./iconFiles.png").path) },
-        { j: JobConnectorData, c : Config -> DatabaseInputConnector(c, DBDescriptor::buildObject) })
+        { j: JobConnectorData, c : Config -> DatabaseInputConnector(c, j) })
 {
     init {
         Connectors.register(this)
     }
-
-    fun buildDataSource(config: Config) : DataSource {
-        val source = HikariDataSource()
-
-        source.jdbcUrl = config.get("url")!!
-        source.username = config.get("username")!!
-        source.password = config.get("password")!!
-
-        return source
-    }
-
-    fun buildClass(config: Config) : Any? {
-        val dataSource = this.buildDataSource(config)
-        val table: String = config.get("table")!!
-        dataSource.connection.use {
-            it.createStatement().executeQuery("SELECT * FROM ${table}")
-                .use {
-                    return this.buildClass(it, table)
-                }
-        }
-    }
-
-    fun buildClass(r : ResultSet, table: String) : Any? {
-        val clazz = ClassGenerator("DBInputStruct${table}")
-        val meta: ResultSetMetaData = r.metaData
-
-        for (i : Int in 1..meta.columnCount) {
-            val parameter = Parameter(meta.getColumnName(i), meta.getColumnClassName(i))
-            clazz.addField(parameter)
-        }
-
-
-
-
-        return null
-    }
-
-    fun buildObject(c : Config, r : ResultSet) : Any? {
-        return null
-    }
-
 }
 
 
 class DatabaseInputConnector(config : Config,
-                            val builder : (Config, ResultSet) -> Any?) : Connector(config) {
+                            val j: JobConnectorData) : Connector(config) {
 
     private val source : DataSource
 
     private val tableName: String
+
+    private var mainClazz : ClassGenerator? = null
+
+    private var objectBuilder : (ResultSet) -> Any? = { null }
+
+    override fun initialize(config: Config, j: JobConnectorData) {
+        val className = this.createClass(j, config)
+
+        val classType: Class<*> = j.jobConfig.loadClass(className)
+        val companion = classType.kotlin.companionObjectInstance
+        val kclass = companion?.javaClass?.kotlin
+        val function = kclass?.declaredFunctions?.first()
+
+        this.objectBuilder = { r : ResultSet -> function?.call(companion, r) }
+    }
+
 
     override fun run(input: Any?, output: (Any?) -> Unit) {
         this.source.connection.use {
@@ -108,7 +74,7 @@ class DatabaseInputConnector(config : Config,
                 val result: ResultSet = it.executeQuery()
                 result.use {
                     while (result.next()) {
-                        val item = this.builder(this.config, result)
+                        val item = this.buildObject(result)
                         if (item != null) {
                             output(item)
                         }
@@ -128,45 +94,93 @@ class DatabaseInputConnector(config : Config,
         this.tableName = config.get("table")!!
     }
 
-}
+    fun buildDataSource(config: Config) : DataSource {
+        val source = HikariDataSource()
 
+        source.jdbcUrl = config.get("url")!!
+        source.username = config.get("username")!!
+        source.password = config.get("password")!!
 
-class ObjectGenerator {
-    fun generate() {
-        val compilerArguments = K2JVMCompilerArguments();
-        compilerArguments.freeArgs = listOf("/Users/christophe/Documents/archives/Dossiers/work/str/Streams/src/test/resources/generate/g1.kt")
-        compilerArguments.destination = "/Users/christophe/Documents/archives/Dossiers/work/str/Streams/src/test/resources/generate/"
-        compilerArguments.jvmTarget = "11"
-        compilerArguments.classpath = System.getProperty("java.class.path")
-        compilerArguments.noStdlib = true
-        val messageCollector = SimpleKotlinCompilerMessageCollector()
-        val exitCode: ExitCode = K2JVMCompiler().exec(
-            messageCollector,
-            Services.Builder().build(),
-            compilerArguments);
-        println("code ${exitCode.code}")
+        return source
+    }
+
+    private fun createClass(j: JobConnectorData, config: Config) : String {
+        val src : SourceFileGenerator = this.buildSource(j, config)
+        val srcFile = src.generate(j.jobConfig.rootFolder.toFile())
+        j.jobConfig.addSource(srcFile)
+        return "${src.packageName}.${src.classes().firstOrNull()?.name}"
+    }
+
+    private fun buildSource(j: JobConnectorData, config: Config) : SourceFileGenerator {
+        val dataSource = this.buildDataSource(config)
+        val table: String = config.get("table")!!
+        val sf = SourceFileGenerator("dbinput.${j.name}", "${j.name}.kt")
+
+        dataSource.connection.use {
+            it.createStatement().executeQuery("SELECT * FROM ${table}")
+                .use {
+                    sf.addClass(this.buildClass(it, j.name, table))
+                }
+        }
+        return sf
+    }
+
+    private fun buildClass(r : ResultSet, name: String, table: String) : ClassGenerator {
+        val clazz = ClassGenerator("${name}${table}")
+        val meta: ResultSetMetaData = r.metaData
+
+        val companion = CompanionBuilderGenerator()
+        val m = MethodGenerator("build")
+        m.addInputParam(Parameter("result", "java.sql.ResultSet"))
+        m.returnType = "${name}${table}"
+
+        for (i : Int in 1..meta.columnCount) {
+            val parameter = Parameter(meta.getColumnName(i), this.toKotlinClass(meta.getColumnClassName(i)))
+            clazz.addField(parameter)
+            this.linesForResult(m, parameter, i)
+        }
+        val inputParam = clazz.fields().map { it.name }.joinToString(", ")
+        m.addLine("return ${clazz.name}(${inputParam})")
+        companion.addMethod(m)
+
+        clazz.builder = companion
+
+        this.mainClazz = clazz
+        return clazz
+    }
+
+    private fun toKotlinClass(javaClass: String) : String {
+        if (javaClass == "java.lang.String") {
+            return "String"
+        }
+        if (javaClass == "java.lang.Integer") {
+            return "Int"
+        }
+        return javaClass
+    }
+
+    private fun linesForResult(m : MethodGenerator, p : Parameter, index : Int) {
+        if (p.type.equals("String")) {
+            m.addLine("val ${p.name} : String? = result.getString(${index})")
+        }
+        else if (p.type.equals("Int")) {
+            m.addLine("val ${p.name}Tmp = result.getInt(${index})")
+            m.addLine("val ${p.name} : Int?")
+            m.addLine("if (result.wasNull()) {");
+            m.addLine("\t${p.name} = null");
+            m.addLine("}");
+            m.addLine("else {");
+            m.addLine("\t${p.name} = ${p.name}Tmp");
+            m.addLine("}");
+        }
+
+    }
+
+    private fun buildObject(r : ResultSet) : Any? {
+        val instance2: Any? = this.objectBuilder(r)
+        return instance2
     }
 }
-
-fun main(args: Array<String>) {
-    println(Class.forName("java.lang.String").kotlin.qualifiedName)
-
-    ObjectGenerator().generate()
-    val classLoader = ObjectGenerator::class.java.classLoader
-    val loader = URLClassLoader(
-        listOf(File("/Users/christophe/Documents/archives/Dossiers/work/str/Streams/src/test/resources/generate").toURI().toURL()).toTypedArray(),
-        classLoader)
-
-    val classType: Class<*> = loader.loadClass("connectors.db.generated.C1")
-    val instance: Any = classType.kotlin.constructors.first().call("Hello")
-    val companion = classType.kotlin.companionObjectInstance
-    val kclass = companion?.javaClass?.kotlin
-    val function = kclass?.declaredFunctions?.first()
-    val instance2: Any? = function?.call(companion)
-    println(instance.toString())
-    println("v2 : ${instance2?.toString()}")
-}
-
 
 
 class SimpleKotlinCompilerMessageCollector : MessageCollector {

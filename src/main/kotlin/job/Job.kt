@@ -2,6 +2,7 @@ package job
 
 import commons.Coordinate
 import configuration.Config
+import connectors.Connector
 import connectors.ConnectorDesc
 import connectors.JobConfig
 import functions.FunctionConsumer
@@ -49,15 +50,17 @@ class JobConnectorData(val jobConfig: JobConfig,
                        val connectorDesc: ConnectorDesc,
                        val name: String,
                        val identifier: String) {
-    fun buildConnector(config : Config) : FunctionConsumer {
-        return this.connectorDesc.build(this, config)
+    fun buildConnector(config : Config) : Connector {
+        val cnx = this.connectorDesc.build(this, config)
+        cnx.initialize(config, this)
+        return cnx
     }
 }
 
 @Serializable
 class JobConnector(val connectorData: JobConnectorData,
                    val config : Config) {
-    fun buildConnector() : FunctionConsumer {
+    fun buildConnector() : Connector {
         return this.connectorData.buildConnector(this.config)
     }
 }

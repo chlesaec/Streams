@@ -2,10 +2,15 @@ package connectors.db
 
 import com.zaxxer.hikari.HikariDataSource
 import configuration.Config
+import connectors.Connector
+import connectors.JobConfig
+import job.JobConnectorData
 import org.h2.tools.Server
 import org.junit.jupiter.api.Test
 
 import org.junit.jupiter.api.Assertions.*
+import java.nio.file.Files
+import java.nio.file.Path
 
 internal class DBDescriptorTest {
 
@@ -27,6 +32,7 @@ internal class DBDescriptorTest {
         cnx.use {
             it.createStatement()
                 .execute("CREATE TABLE T1 (C1  VARCHAR(20), C2 INT)")
+            it.createStatement().execute("INSERT INTO T1 (C1, C2) values ('HELLO', 4)")
         }
 
         val config = Config.Builder()
@@ -35,8 +41,19 @@ internal class DBDescriptorTest {
             .add("password", "")
             .add("table", "T1")
             .build()
+        val jobCfg = JobConfig()
+        jobCfg.rootFolder = Path.of(
+            Thread.currentThread().contextClassLoader.getResource(".").toURI() )
+        val jcd = JobConnectorData(jobCfg, DBDescriptor, "C1", "id1")
+        val connector: Connector = DBDescriptor.build(jcd, config)
+        connector.initialize(config, jcd)
+        connector.run(null) {
+            if (it != null) {
+                println(it.toString())
+            }
+        }
 
-        val cls = DBDescriptor.buildClass(config)
+       // val cls = DBDescriptor.buildClass(config)
 
         server.stop()
     }
