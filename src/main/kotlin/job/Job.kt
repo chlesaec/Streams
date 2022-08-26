@@ -57,7 +57,6 @@ class JobConnectorData(val jobConfig: JobConfig,
     }
 }
 
-@Serializable
 class JobConnector(val connectorData: JobConnectorData,
                    val config : Config) {
     fun buildConnector() : Connector {
@@ -69,9 +68,23 @@ sealed interface Event
 object ItemEvent : Event
 object EndEvent : Event
 
-class JobLink(val view : LinkView) {
+class NextFilter(val names : Array<String>) {
+
+    constructor(s: String) : this(Array(1) { s }) {
+    }
+
+    fun select(name: String) : Boolean {
+        return name == "*" || names.contains("*") || names.contains(name)
+    }
+}
+
+class JobLink(val view : LinkView, val filter: NextFilter) {
     fun onEvent(e: Event) {
         view.drawer?.updateCounter()
+    }
+
+    fun name() : String {
+        return this.filter.names.joinToString(", ")
     }
 }
 
@@ -110,10 +123,13 @@ typealias JobNodeBuilder = NodeBuilder<JobConnectorBuilder, JobLink>
 typealias JobEdgeBuilder = EdgeBuilder<JobConnectorBuilder, JobLink>
 
 class JobBuilder(val graph : JobGraphBuilder) {
-    fun build(cfg: JobConfig) : Job {
+
+    val jobConfig = JobConfig()
+
+    fun build() : Job {
         val jobGraph : Graph<JobConnector, JobLink> = this.graph
             .build()
-            .map({ j: JobConnectorBuilder -> j.toJobConnector(cfg) })
+            .map({ j: JobConnectorBuilder -> j.toJobConnector(jobConfig) })
         { link: JobLink -> link }
         return Job(jobGraph)
     }

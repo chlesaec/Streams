@@ -38,15 +38,63 @@ class Error(val reason: String) : Result() {
     }
 }
 
-class Link(val linkTypes : Array<KClass<out Any>>) {
-    fun canSucceed(precClazz: KClass<out Any>): Boolean {
-        return this.linkTypes.any {
-            this.canSucceedClass(precClazz, it)
+class LinkInput(val linkTypes : Array<KClass<out Any>>) {
+
+    fun canSucceed(precClazz: LinkOutput): Array<String> {
+        return this.linkTypes.map {
+            val ret = this.canSucceedClass(it, precClazz)
+            println("Succeed before reduce : ${ret.size}")
+            ret
         }
+            .reduce{
+                l: Array<String>, r : Array<String> ->
+                println("redure : ${l.size}")
+                Array(l.size + r.size) {
+                if (it < l.size) {
+                    l[it]
+                }
+                else {
+                    r[it - l.size]
+                }
+            }
+            }
+           /*
+            .reduce {
+                l: Array<String>, r : Array<String> -> Array(l.size + r.size) {
+                    if (it < l.size) {
+                        l[it]
+                    }
+                    else {
+                        r[it - l.size]
+                    }
+                }
+            }*/
+    }
+
+    private fun canSucceedClass(succ: KClass<out Any>,
+                                prec: LinkOutput): Array<String> {
+        return prec.selectCompatibleOutput(succ)
+    }
+}
+
+class LinkOutput() {
+    private val outputs = mutableMapOf<String, KClass<out Any>>()
+
+    fun add(name: String, clazz: KClass<out Any>) : LinkOutput {
+        this.outputs[name] = clazz
+        return this
+    }
+
+    fun selectCompatibleOutput(succ: KClass<out Any>) : Array<String> {
+        return outputs.entries
+            .filter { this.canSucceedClass(it.value, succ) }
+            .map { it.key }
+            .toTypedArray()
     }
 
     private fun canSucceedClass(prec: KClass<out Any>,
                                 succ: KClass<out Any>): Boolean {
+        println("Prec ${prec.simpleName} is sub class of ${succ.simpleName} ${prec.isSubclassOf(succ)}")
         return prec.isSubclassOf(succ)
     }
 }
@@ -203,8 +251,8 @@ data class VersionedIdentifier(
 
 open class ConnectorDesc(
     var identifier: VersionedIdentifier,
-    val intput: Link,
-    val outputClass: KClass<out Any>,
+    val intput: LinkInput,
+    val output: LinkOutput,
     val config: ConfigDescription,
     val icon : () -> Image,
     val builder : (JobConnectorData, Config) -> Connector
@@ -215,10 +263,6 @@ open class ConnectorDesc(
             throw IllegalStateException("config not compliant")
         }
         return this.builder(j, c)
-    }
-
-    fun canSucceed(prec : ConnectorDesc) {
-        this.intput.canSucceed(prec.outputClass)
     }
 
 }
@@ -263,10 +307,6 @@ class JobConfig() {
         File(rootFolder.toFile(),  "/generate")
 
 }
-
-class ConnectorConfig(
-    val jobConfig: JobConfig,
-    val config: Config)
 
 
 abstract class Connector(

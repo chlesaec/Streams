@@ -7,8 +7,11 @@ import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import com.amazonaws.services.s3.model.GetObjectRequest
 import configuration.Config
 import connectors.*
+import connectors.commons.RowError
+import functions.OutputFunction
 import javafx.scene.image.Image
 import job.JobConnectorData
+import java.io.IOException
 import java.io.InputStream
 import java.nio.file.*
 
@@ -34,8 +37,9 @@ val localFileConfigDescription = ConfigDescription(
 object LocalFileDescriptor :
         ConnectorDesc(
             VersionedIdentifier("Local File Input", Version(listOf(1))),
-            Link(arrayOf()),
-            InputRecord::class,
+            LinkInput(arrayOf()),
+            LinkOutput().add("main", InputRecord::class)
+                .add("error", RowError::class),
             localFileConfigDescription,
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./iconFiles.png").path) },
             { j: JobConnectorData,  c : Config -> LocalFileConnector(c) })
@@ -46,7 +50,7 @@ object LocalFileDescriptor :
         }
 
 class LocalFileConnector(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: (Any?) -> Unit) {
+    override fun run(input: Any?, output: OutputFunction) {
         val root = config.get("root") ?: ""
         val rootPath = Path.of(root)
         val pattern = config.get("pattern") ?: ""
@@ -59,14 +63,19 @@ class LocalFileConnector(config : Config) : Connector(config) {
         this.exploreDirectory(rootPath, root, matcher, sub, output)
     }
 
-    private fun exploreDirectory(path: Path, root: String, matcher: PathMatcher, sub: Boolean, output: (Any?) -> Unit) {
-        val dirStream = Files.newDirectoryStream(path)
-        dirStream.forEach {
-            this.explore(it, root, matcher, sub, output)
+    private fun exploreDirectory(path: Path, root: String, matcher: PathMatcher, sub: Boolean, output: OutputFunction) {
+        try {
+            val dirStream = Files.newDirectoryStream(path)
+            dirStream.forEach {
+                this.explore(it, root, matcher, sub, output)
+            }
+        }
+        catch (ex: IOException) {
+            output("error", RowError(this, "Can't explore ${path.toFile().name}", ex))
         }
     }
 
-    private fun explore(path : Path, root : String, matcher: PathMatcher, sub:Boolean, output: (Any?) -> Unit) {
+    private fun explore(path : Path, root : String, matcher: PathMatcher, sub:Boolean, output: OutputFunction) {
         if (path.toFile().isFile) {
             if (matcher.matches(path.fileName)) {
                 val record = InputRecord(
@@ -78,7 +87,7 @@ class LocalFileConnector(config : Config) : Connector(config) {
                 { consumer: InputStreamConsumer ->
                     Files.newInputStream(path).use(consumer)
                 }
-                output(record)
+                output("main", record)
             }
         }
         else if (path.toFile().isDirectory && sub) {
@@ -89,7 +98,7 @@ class LocalFileConnector(config : Config) : Connector(config) {
 
 class S3Input(config: Config) : Connector(config) {
     
-    override fun run(input: Any?, output: (Any?) -> Unit) {
+    override fun run(input: Any?, output: OutputFunction) {
         val keyName = config.get("key") ?: ""
         val bucketName = config.get("bucket") ?: ""
         val request =  GetObjectRequest(bucketName, keyName)
@@ -115,7 +124,7 @@ class S3Input(config: Config) : Connector(config) {
             val objectData: InputStream = s3Object.objectContent
             objectData.use(consumer)
         }
-        output(record)
+        output("main", record)
     }
 
 }

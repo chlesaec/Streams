@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Assertions.*
 internal class ConfigDescriptionTest {
 
     @Test
-    fun getDescription() {
+    fun testDescription() {
         val description = ConfigDescription(
             ComposedType(
                 Fields.Builder()

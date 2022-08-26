@@ -7,7 +7,7 @@ import java.io.ByteArrayOutputStream
 internal class ClassGeneratorTest {
 
     @Test
-    fun generateCode() {
+    fun testGenerateCode() {
         val out = ByteArrayOutputStream()
 
         val generator = ClassGenerator("C1")

@@ -7,35 +7,31 @@ import org.junit.jupiter.api.Test
 internal class CoordinateTest {
 
     @Test
-    fun plus() {
+    fun testPlus() {
         val result = Coordinate(2.0, -3.0) + Coordinate(5.0, 1.0)
         Assertions.assertEquals(Coordinate(7.0, -2.0), result)
     }
 
     @Test
-    fun minus() {
+    fun testMinus() {
         val result = Coordinate(2.0, -3.0) - Coordinate(5.0, 1.0)
         Assertions.assertEquals(Coordinate(-3.0, -4.0), result)
     }
 
     @Test
-    fun times() {
+    fun testTimes() {
         val result = Coordinate(2.0, -3.0) * 3.0
         Assertions.assertEquals(Coordinate(6.0, -9.0), result)
-/*
-        val result2 = -2.0 * Coordinate(2.0, -3.0)
-        Assertions.assertEquals(Coordinate(-4.0, 6.0), result)
- */
     }
 
     @Test
-    fun length() {
+    fun testLength() {
         val result = Coordinate(4.0, -3.0).length()
         Assertions.assertEquals(5.0, result)
     }
 
     @Test
-    fun ortho() {
+    fun testOrtho() {
         val first = Coordinate(4.0, -3.0)
         val result = first.ortho()
         Assertions.assertEquals(0.0, result * first, 0.00001)
@@ -46,7 +42,7 @@ internal class CoordinateTest {
     }
 
     @Test
-    fun distanceToSegment() {
+    fun testDistanceToSegment() {
         val H1 = Coordinate(1.0, 1.0)
         val H2 = Coordinate(6.0, 1.0)
         val pointOnSegment = Coordinate(3.0, 1.0)

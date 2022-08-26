@@ -15,6 +15,7 @@ import java.lang.RuntimeException
 import java.net.URL
 import java.net.URLClassLoader
 import java.util.*
+import javax.json.JsonString
 import kotlin.collections.HashMap
 import kotlin.jvm.internal.Reflection
 import kotlin.reflect.*
@@ -127,13 +128,20 @@ class JobLoader {
         if (jsonEdge is JsonObject) {
             val from = jsonEdge["from"]
             val to = jsonEdge["to"]
+            val filter = jsonEdge["filter"]
             if (from is JsonPrimitive && from.isString
-                && to is JsonPrimitive && to.isString) {
+                && to is JsonPrimitive && to.isString
+                && filter is JsonArray) {
                 val connectorFrom : NodeBuilder<JobConnectorBuilder, JobLink>? = cbuilder.find { it.data.identifier == from.content }
                 val connectorTo : NodeBuilder<JobConnectorBuilder, JobLink>? = cbuilder.find { it.data.identifier == to.content }
                 if (connectorFrom is NodeBuilder<JobConnectorBuilder, JobLink>
                     && connectorTo is NodeBuilder<JobConnectorBuilder, JobLink>) {
-                    connectorFrom.addNext(connectorTo, JobLink(LinkView(Color.BLACK, 3.0)))
+                    val content = filter.filter { it is JsonPrimitive && it.isString }
+                            .map(JsonPrimitive::class::cast)
+                            .map(JsonPrimitive::content)
+                            .toTypedArray()
+                    connectorFrom.addNext(connectorTo, JobLink(LinkView(Color.BLACK, 3.0),
+                        NextFilter(content)))
                 }
             }
         }
@@ -236,6 +244,7 @@ class JobSaver() {
             val obj = HashMap<String, JsonElement>()
             obj.put("from", JsonPrimitive(it.first.data.identifier))
             obj.put("to", JsonPrimitive(it.second.next.data.identifier))
+            obj.put("filter", JsonArray(it.second.data.filter.names.map { JsonPrimitive(it) }.toList()))
             JsonObject(obj)
         }
         elements["links"] = JsonArray(edges)
@@ -243,22 +252,6 @@ class JobSaver() {
         return JsonObject(elements)
     }
 
-    private fun addEdge(cbuilder: List<NodeBuilder<JobConnectorBuilder, JobLink>>,
-                        jsonEdge : JsonElement) {
-        if (jsonEdge is JsonObject) {
-            val from = jsonEdge["from"]
-            val to = jsonEdge["to"]
-            if (from is JsonPrimitive && from.isString
-                && to is JsonPrimitive && to.isString) {
-                val connectorFrom : NodeBuilder<JobConnectorBuilder, JobLink>? = cbuilder.find { it.data.identifier == from.content }
-                val connectorTo : NodeBuilder<JobConnectorBuilder, JobLink>? = cbuilder.find { it.data.identifier == to.content }
-                if (connectorFrom is NodeBuilder<JobConnectorBuilder, JobLink>
-                    && connectorTo is NodeBuilder<JobConnectorBuilder, JobLink>) {
-                    connectorFrom.addNext(connectorTo, JobLink(LinkView(Color.BLACK, 3.0)))
-                }
-            }
-        }
-    }
 }
 
 class ConnectorBuilderSaver() {

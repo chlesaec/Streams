@@ -3,26 +3,24 @@ package runner
 import commons.Coordinate
 import configuration.Config
 import connectors.*
+import functions.OutputFunction
 import graph.Graph
 import graph.GraphBuilder
-import javafx.scene.canvas.GraphicsContext
 import javafx.scene.image.Image
 import javafx.scene.paint.Color
 import job.*
 import org.junit.jupiter.api.Test
 
-import org.junit.jupiter.api.Assertions.*
 import job.ComponentView
-import java.util.*
 
 internal class JobRunnerTest {
 
     @Test
-    fun compile() {
+    fun testCompile() {
         val desc1 = ConnectorDesc(
             VersionedIdentifier("intGenerator", Version(listOf(1))),
-            Link(arrayOf(Nothing::class)),
-            Int::class,
+            LinkInput(arrayOf(Nothing::class)),
+            LinkOutput().add("*",  Int::class),
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
         ) { j: JobConnectorData,  c: Config -> IntGenerator(c) }
@@ -49,8 +47,8 @@ internal class JobRunnerTest {
 
         val desc2 = ConnectorDesc(
             VersionedIdentifier("intInc", Version(listOf(1))),
-            Link(arrayOf(Int::class)),
-            Int::class,
+            LinkInput(arrayOf(Int::class)),
+            LinkOutput().add("*",  Int::class),
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
         ) { j: JobConnectorData, c: Config -> IntInc(c) }
@@ -60,8 +58,8 @@ internal class JobRunnerTest {
 
         val desc2Bis = ConnectorDesc(
             VersionedIdentifier("intDouble", Version(listOf(1, 0))),
-            Link(arrayOf(Int::class)),
-            Int::class,
+            LinkInput(arrayOf(Int::class)),
+            LinkOutput().add("*",  Int::class),
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
         ) { j: JobConnectorData, c: Config -> IntDouble(c) }
@@ -71,8 +69,8 @@ internal class JobRunnerTest {
 
         val desc3 = ConnectorDesc(
             VersionedIdentifier("intReg", Version(listOf(1))),
-            Link(arrayOf(Int::class)),
-            Nothing::class,
+            LinkInput(arrayOf(Int::class)),
+            LinkOutput(),
             ConfigDescription(ComposedType(Fields.Builder().build())),
             { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
         ) { j: JobConnectorData, c: Config -> IntReg(c) }
@@ -80,12 +78,12 @@ internal class JobRunnerTest {
         val c3 = JobConnector(cdata3, Config.Builder().build())
         val node3 = graphJobBuilder.addNode(c3)
 
-        node1.addNext(node2, JobLink(LinkView(Color.BLUE, 3.0)))
-        node1Bis.addNext(node2, JobLink(LinkView(Color.BLUE, 3.0)))
-        node2.addNext(node3, JobLink(LinkView(Color.BLUE, 3.0)))
+        node1.addNext(node2, JobLink(LinkView(Color.BLUE, 3.0), NextFilter("*")))
+        node1Bis.addNext(node2, JobLink(LinkView(Color.BLUE, 3.0), NextFilter("*")))
+        node2.addNext(node3, JobLink(LinkView(Color.BLUE, 3.0), NextFilter("*")))
 
-        node1.addNext(node2Bis, JobLink(LinkView(Color.BLUE, 3.0)))
-        node2Bis.addNext(node3, JobLink(LinkView(Color.BLUE, 3.0)))
+        node1.addNext(node2Bis, JobLink(LinkView(Color.BLUE, 3.0), NextFilter("*")))
+        node2Bis.addNext(node3, JobLink(LinkView(Color.BLUE, 3.0), NextFilter("*")))
 
         val graphJob : Graph<JobConnector, JobLink> = graphJobBuilder.build()
         val job = Job(graphJob)
@@ -94,41 +92,38 @@ internal class JobRunnerTest {
 }
 
 class IntGenerator(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: (Any?) -> Unit) {
+    override fun run(input: Any?, output: OutputFunction) {
         val start = config.get("start")?.toInt() ?: 0
         val end = config.get("end")?.toInt() ?: start + 100
         val step = config.get("step")?.toInt() ?: 1
         for (i in start..end step step) {
-            println("generate $i")
-            output(i)
+            output("main", i)
         }
     }
 }
 
 class IntInc(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: (Any?) -> Unit) {
+    override fun run(input: Any?, output: OutputFunction) {
         if (input is Int) {
             val next = input + 1
-            println("add ${next}")
-            output(next)
+            output("main", next)
         }
     }
 }
 
 class IntDouble(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: (Any?) -> Unit) {
+    override fun run(input: Any?, output: OutputFunction) {
         if (input is Int) {
             val next = input * 2
-            println("double ${next}")
-            output(next)
+            output("main", next)
         }
     }
 }
 
 class IntReg(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: (Any?) -> Unit) {
+    override fun run(input: Any?, output: OutputFunction) {
         if (input is Int) {
-            println("END With ${input}")
+
         }
     }
 }

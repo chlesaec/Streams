@@ -39,7 +39,7 @@
     }
   ],
   "links" : [
-    { "from" :  "1",  "to" :  "2" },
-    { "from" :  "2",  "to" :  "3" }
+    { "from" :  "1",  "to" :  "2", "filter": ["main"] },
+    { "from" :  "2",  "to" :  "3", "filter": ["main"]  }
   ]
 }

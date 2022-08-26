@@ -15,14 +15,19 @@ interface Runner {
     fun compile(job: Job) : () -> Unit
 }
 
+class NextRunner(val filter: NextFilter, val item: RunnerItem) {
+    fun select(name: String) = this.filter.select(name)
+}
+
 class RunnerItem(val function : FunctionConsumer,
-                 val nexts : List<RunnerItem>) {
+                 val nexts : List<NextRunner>) {
 
     fun execute(element: Any?) {
         function.run(element) {
-                targetElement : Any? ->
-                nexts.forEach {
-                    it.execute(targetElement)
+                branchName: String, targetElement : Any? ->
+                nexts.filter { it.select(branchName) }
+                .forEach {
+                    it.item.execute( targetElement)
                 }
         }
     }
@@ -40,7 +45,7 @@ class LinkedRunnerItem(
 
 class RunnerItemChannel(val function : FunctionConsumer,
                         val nexts : List<LinkedRunnerItem>) {
-    val queue = Channel<Any?> {}
+    val queue = Channel<Pair<String, Any?>> {}
 
     val identifier = UUID.randomUUID()
 
@@ -48,12 +53,12 @@ class RunnerItemChannel(val function : FunctionConsumer,
 
     var started = false
 
-    suspend fun execute(element: Any?) {
+    suspend fun execute(branch: String, element: Any?) {
         if (!started) {
             started = true
             this.consumeChannel()
         }
-        queue.send(element)
+        queue.send(Pair(branch, element))
     }
 
     fun initialize() {
@@ -67,16 +72,17 @@ class RunnerItemChannel(val function : FunctionConsumer,
     private suspend fun consumeChannel() {
         GlobalScope.launch {
             while (this@RunnerItemChannel.precedents.isNotEmpty()) {
-                for (element in this@RunnerItemChannel.queue) {
+                for (pairElem in this@RunnerItemChannel.queue) {
+                    val element = pairElem.second
                     if (element is EndRunner) {
                         this@RunnerItemChannel.precedents.remove(element.identifier)
                     }
                     else {
-                        function.run(element) { targetElement: Any? ->
+                        function.run(element) { branch: String, targetElement: Any? ->
                             GlobalScope.launch {
                                 nexts.forEach {
                                     it.link?.onEvent(ItemEvent)
-                                    it.runner.execute(targetElement)
+                                    it.runner.execute(branch, targetElement)
                                 }
                             }
                         }
@@ -89,7 +95,7 @@ class RunnerItemChannel(val function : FunctionConsumer,
                     val terminate = EndRunner(this@RunnerItemChannel.identifier)
                     this@RunnerItemChannel.nexts.forEach {
                         it.link?.onEvent(EndEvent)
-                        it.runner.execute(terminate)
+                        it.runner.execute("*", terminate)
                     }
                 }
             }
@@ -103,8 +109,8 @@ class RunableJob(val startNodes : List<LinkedRunnerItem>) {
             val identifier = UUID.randomUUID()
             startNodes.map(LinkedRunnerItem::runner).forEach {
                 it.declarePrecedent(identifier)
-                it.execute(null)
-                it.execute(EndRunner(identifier))
+                it.execute("*", null)
+                it.execute("*", EndRunner(identifier))
             }
         }
     }

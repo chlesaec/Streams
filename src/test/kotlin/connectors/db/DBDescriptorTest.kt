@@ -8,17 +8,14 @@ import job.JobConnectorData
 import org.h2.tools.Server
 import org.junit.jupiter.api.Test
 
-import org.junit.jupiter.api.Assertions.*
-import java.nio.file.Files
 import java.nio.file.Path
 
 internal class DBDescriptorTest {
 
     @Test
-    fun buildClass() {
+    fun testBuildClass() {
         val server = Server.createTcpServer("-tcpPort", "9092", "-tcpAllowOthers").start();
-        println(server.service.url)
-        println(server.service.name)
+
 
         Class.forName("org.h2.Driver")
 
@@ -47,9 +44,9 @@ internal class DBDescriptorTest {
         val jcd = JobConnectorData(jobCfg, DBDescriptor, "C1", "id1")
         val connector: Connector = DBDescriptor.build(jcd, config)
         connector.initialize(config, jcd)
-        connector.run(null) {
-            if (it != null) {
-                println(it.toString())
+        connector.run(null) { branch: String, item: Any? ->
+            if (item != null) {
+                println(item.toString())
             }
         }
 

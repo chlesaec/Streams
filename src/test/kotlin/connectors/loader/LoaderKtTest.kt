@@ -2,6 +2,7 @@ package connectors.loader
 
 import configuration.Config
 import connectors.*
+import functions.OutputFunction
 import javafx.scene.image.Image
 import job.JobBuilder
 import job.JobConnectorBuilder
@@ -16,7 +17,7 @@ import kotlin.reflect.full.createInstance
 class LoaderKtTest {
 
     @Test
-    fun classReference() {
+    fun testClassReference() {
         val resource = Thread.currentThread()
                 .contextClassLoader
                 .getResource("./jar/commons-lang3-3.8.1.jar")
@@ -29,7 +30,7 @@ class LoaderKtTest {
     }
 
     @Test
-    fun configDesc() {
+    fun testConfigDesc() {
         val jsonCfg: JsonElement = Json.parseToJsonElement(
             "{" +
                     "\"f1\": { \"type\": \"integer\" }," +
@@ -54,7 +55,7 @@ class LoaderKtTest {
     }
 
     @Test
-    fun classLoaderTest() {
+    fun testClassLoader() {
 
         val classLoader = this.javaClass.classLoader
         val classLoader1 = Int::class.java.classLoader
@@ -66,8 +67,8 @@ class LoaderKtTest {
     init {
       val desc = ConnectorDesc(
           VersionedIdentifier("testCNX", Version(listOf(1, 0))),
-          Link(arrayOf(Int::class)),
-          Nothing::class,
+          LinkInput(arrayOf(Int::class)),
+          LinkOutput().add("main", Int::class),
           ConfigDescription(ComposedType(Fields.Builder().build())),
           { Image("file:" + Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
       ) { j: JobConnectorData, c: Config -> FakeConnector(c) }
@@ -75,7 +76,7 @@ class LoaderKtTest {
     }
 
     @Test
-    fun loadJob() {
+    fun testLoadJob() {
         val resource: URL? = Thread.currentThread().contextClassLoader.getResource("./loader/job1.json")
         if (resource == null) {
             throw RuntimeException("file not exists")
@@ -86,8 +87,8 @@ class LoaderKtTest {
         val loader = JobLoader()
         val builder : JobBuilder = loader.loadJob(jsonJob.jsonObject)
         Assertions.assertEquals(3, builder.graph.nodes().size)
-        val cfg = JobConfig()
-        val job = builder.build(cfg)
+
+        val job = builder.build()
         Assertions.assertEquals(2, job.graph.edges.size)
 
         val saver = JobSaver()
@@ -99,7 +100,7 @@ class LoaderKtTest {
     }
 
     @Test
-    fun loadConnector() {
+    fun testLoadConnector() {
         val resource: URL? = Thread.currentThread().contextClassLoader.getResource("./loader/connector1.json")
         if (resource != null) {
             val content : String = resource.readText()
@@ -125,7 +126,7 @@ class LoaderKtTest {
 }
 
 class FakeConnector(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: (Any?) -> Unit) {
-        output(input)
+    override fun run(input: Any?, output: OutputFunction) {
+        output("*", input)
     }
 }

@@ -3,14 +3,18 @@ package ui
 import commons.Coordinate
 import configuration.Config
 import connectors.*
+import connectors.db.DBDescriptor
 import connectors.format.csv.CsvReaderDescriptor
 import connectors.io.LocalFileDescriptor
 import connectors.io.LocalFileOutputDescriptor
 import connectors.loader.JobLoader
 import connectors.loader.JobSaver
+import connectors.logRow.LogRowDescriptor
+import functions.OutputFunction
 import graph.GraphBuilder
 import graph.NodeBuilder
 import javafx.collections.FXCollections
+import javafx.collections.ObservableList
 import javafx.event.ActionEvent
 import javafx.event.EventHandler
 import javafx.scene.Scene
@@ -91,13 +95,13 @@ class ArrowView() {
 
 class LinkUI(val g : GraphicsContext,
              val ge: GraphicEvent,
-             val link : LinkView,
+             val link : JobLink,
              val startGetter : () -> Coordinate,
              val endGetter: () -> Coordinate) : LinkDrawer {
 
     override fun draw() {
-        g.stroke = link.color
-        g.lineWidth = link.width
+        g.stroke = link.view.color
+        g.lineWidth = link.view.width
         val start = startGetter()
         val end = endGetter()
         val middlePoint = (start + end) / 2.0
@@ -112,11 +116,20 @@ class LinkUI(val g : GraphicsContext,
         g.strokeLine(start.x, start.y, end.x, end.y)
         g.strokeLine(firstPoint.x, firstPoint.y, arrowPoint.x, arrowPoint.y)
         g.strokeLine(secondPoint.x, secondPoint.y, arrowPoint.x, arrowPoint.y)
+
+        this.g.fill = Color.BLACK
+        this.g.font = Font.font("Verdana", 11.0)
+
+        val position = (start * 8.0 + end * 2.0) / 10.0
+        this.g.fillText("${link.name()}",
+            position.x,
+            position.y - 10.0)
+        this.g.restore()
     }
 
     override fun updateCounter() {
         println("start update counter")
-        this.link.count++
+        this.link.view.count++
         val middlePoint = (startGetter() + endGetter()) / 2.0
         ge.run {
             this.g.fill = Color.WHITE
@@ -128,7 +141,7 @@ class LinkUI(val g : GraphicsContext,
             this.g.fill = Color.BLACK
             this.g.font = Font.font("Verdana", 8.0)
             this.g.fillText(
-                 this.link.count.toString(),
+                 this.link.view.count.toString(),
                  middlePoint.x,
                  middlePoint.y
             )
@@ -144,7 +157,7 @@ class JobView(val jobBuilder: () -> JobBuilder,
     fun show() {
         val builder: JobBuilder = this.jobBuilder()
         builder.graph.edges().forEach {
-            this.showLink(it.second.data.view, it)
+            this.showLink(it.second.data, it)
         }
         builder.graph.nodes().forEach {
             val draw = ComponentDraw(g)
@@ -152,15 +165,15 @@ class JobView(val jobBuilder: () -> JobBuilder,
         }
     }
 
-    private fun showLink(view : LinkView,
+    private fun showLink(view : JobLink,
                          edge: Pair<JobNodeBuilder, JobEdgeBuilder>) {
 
-        if (view.drawer == null) {
+        if (view.view.drawer == null) {
             val start = { edge.first.data.center() }
             val end = { edge.second.next.data.center() }
-            view.drawer = LinkUI(g, this.ge, view, start, end)
+            view.view.drawer = LinkUI(g, this.ge, view, start, end)
         }
-        val vd = view.drawer
+        val vd = view.view.drawer
         if (vd is LinkDrawer) {
             vd.draw()
         }
@@ -308,26 +321,66 @@ class ConnectorsDialog(val redraw : () -> Unit,
 
 }
 
+class FilterChoices(ownerStage : Stage) {
+    private val stage: Stage = Stage()
+
+    init {
+        stage.title = "Branch filter"
+        stage.initOwner(ownerStage)
+    }
+
+    fun show(names: Array<String>, selectedNames : MutableList<String>) {
+        val root = BorderPane()
+
+        val observableNames : ObservableList<String> = FXCollections.observableArrayList<String>()
+        names.forEach(observableNames::add)
+        val namesView = ListView(observableNames)
+        root.center = namesView
+
+        val okButton = Button("Ok")
+
+        okButton.onAction = EventHandler {
+            val name: ObservableList<String> = namesView.selectionModel.selectedItems
+            selectedNames.clear()
+            name.forEach(selectedNames::add)
+            it.consume()
+            this.stage.close()
+        }
+        root.bottom = HBox(1.4, okButton)
+        val scene = Scene(root, 550.0, 250.0)
+        stage.scene = scene
+        stage.initModality(Modality.APPLICATION_MODAL)
+        stage.showAndWait()
+    }
+}
+
 class LinkBuilder(
     private val job : JobBuilder,
     private val startComponent : JobNodeBuilder,
-    val linkBuilder : () -> JobLink) {
+    val selectedNames: (Array<String>) -> Array<String>,
+    val linkBuilder : (Array<String>) -> JobLink) {
+
     fun newLink(endPosition : Coordinate) {
 
-        val endComponent : JobNodeBuilder? = job.graph.nodesBuilder().filter {
-            cnxNode : JobNodeBuilder ->
+        val endComponent : JobNodeBuilder? = job.graph.nodesBuilder().filter { cnxNode: JobNodeBuilder ->
             cnxNode != startComponent
                     && cnxNode.data.inside(endPosition)
-                    && isCompatible(startComponent, cnxNode)
-        }
-            .firstOrNull()
+        }.firstOrNull()
+
        if (endComponent is NodeBuilder<JobConnectorBuilder, JobLink>) {
-           startComponent.addNext(endComponent, this.linkBuilder())
+           val possibleLinks = this.isCompatible(startComponent, endComponent)
+           if (possibleLinks.size == 1) {
+               startComponent.addNext(endComponent, this.linkBuilder(possibleLinks))
+           }
+           else if (possibleLinks.size > 1) {
+               val selectedLinks = this.selectedNames(possibleLinks)
+               startComponent.addNext(endComponent, this.linkBuilder(selectedLinks))
+           }
        }
     }
 
-    private fun isCompatible(start: JobNodeBuilder, end: JobNodeBuilder) : Boolean {
-        return end.data.connectorDesc.intput.canSucceed(start.data.connectorDesc.outputClass)
+    private fun isCompatible(start: JobNodeBuilder, end: JobNodeBuilder) : Array<String> {
+        return end.data.connectorDesc.intput.canSucceed(start.data.connectorDesc.output)
     }
 }
 
@@ -401,7 +454,6 @@ class StudioView() : View("studio") {
     private var selectedConnector : JobConnectorBuilder? = null
     private var selectedEdge : Pair<JobNodeBuilder, JobEdgeBuilder>? = null
     private var job : JobBuilder
-    private var jobConfig = JobConfig()
 
     private var canvas: Canvas? = null
 
@@ -453,7 +505,7 @@ class StudioView() : View("studio") {
 
     private fun run() {
         //JobConfig
-        this.job.build(this.jobConfig).run(JobRunner())
+        this.job.build().run(JobRunner())
     }
 
     override val root = borderpane {
@@ -576,7 +628,13 @@ class StudioView() : View("studio") {
                 }
                 else {
                     val item = MenuItem("New Link")
-                    val lb = LinkBuilder(this.job, comp) { JobLink(LinkView(Color.BLACK, 3.0)) }
+                    val filter = FilterChoices(this.primaryStage)
+                    val selectFunction = { list: Array<String> ->
+                        val selection = mutableListOf<String>()
+                        filter.show(list,selection)
+                        selection.toTypedArray()
+                    }
+                    val lb = LinkBuilder(this.job, comp, selectFunction) { JobLink(LinkView(Color.BLACK, 3.0), NextFilter(it)) }
                     item.setOnAction { e : ActionEvent -> NewLinkDragger(center, comp, this::draw, lb::newLink) }
 
                     val deleteItem = MenuItem("delete")
@@ -626,7 +684,7 @@ class Studio: App(StudioView::class) {
 }
 
 class VoidConnector(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: (Any?) -> Unit) {
+    override fun run(input: Any?, output: OutputFunction) {
     }
 }
 
@@ -634,6 +692,8 @@ fun initConectors() {
     LocalFileDescriptor
     LocalFileOutputDescriptor
     CsvReaderDescriptor
+    DBDescriptor
+    LogRowDescriptor
 }
 
 fun main(args: Array<String>) {

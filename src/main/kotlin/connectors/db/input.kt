@@ -5,6 +5,7 @@ import configuration.Config
 import connectors.*
 import connectors.generators.*
 import connectors.io.InputRecord
+import functions.OutputFunction
 import javafx.scene.image.Image
 import job.JobConnectorData
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
@@ -32,8 +33,8 @@ val databaseConfigDescription = ConfigDescription(
 object DBDescriptor :
     ConnectorDesc(
         VersionedIdentifier("Database Input", Version(listOf(1))),
-        Link(arrayOf()),
-        InputRecord::class,
+        LinkInput(arrayOf()),
+        LinkOutput().add("main", InputRecord::class),
         databaseConfigDescription,
         { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./iconFiles.png").path) },
         { j: JobConnectorData, c : Config -> DatabaseInputConnector(c, j) })
@@ -67,7 +68,7 @@ class DatabaseInputConnector(config : Config,
     }
 
 
-    override fun run(input: Any?, output: (Any?) -> Unit) {
+    override fun run(input: Any?, output: OutputFunction) {
         this.source.connection.use {
             val query: PreparedStatement = it.prepareStatement("SELECT * FROM ${tableName}")
             query.use {
@@ -76,7 +77,7 @@ class DatabaseInputConnector(config : Config,
                     while (result.next()) {
                         val item = this.buildObject(result)
                         if (item != null) {
-                            output(item)
+                            output("main", item)
                         }
                     }
                 }

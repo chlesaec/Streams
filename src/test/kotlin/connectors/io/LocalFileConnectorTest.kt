@@ -11,7 +11,7 @@ import java.net.URL
 internal class LocalFileConnectorTest {
 
     @Test
-    fun run() {
+    fun testRun() {
         val resource: URL? = Thread.currentThread().contextClassLoader.getResource("./files")
         if (resource == null) {
             throw RuntimeException("file not exists")
@@ -32,7 +32,7 @@ internal class LocalFileConnectorTest {
         }
 
         f.run(null) {
-            output : Any? ->
+            branch: String, output : Any? ->
             if (output is InputRecord) {
                 output.consume(finput)
             }

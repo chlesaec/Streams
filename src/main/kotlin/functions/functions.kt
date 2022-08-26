@@ -1,24 +1,22 @@
 package functions
 
-/*import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-*/
+typealias OutputFunction = (String, Any?) -> Unit
 
 interface FunctionConsumer {
-    fun run(input : Any?, output : (Any?) -> Unit)
+    fun run(input : Any?, output : OutputFunction)
 }
 object DoNothingFunction : FunctionConsumer {
-    override fun run(input : Any?, output : (Any?) -> Unit) {}
+    override fun run(input : Any?, output : OutputFunction) {}
 }
 
 open class ChainedConsumers(val f1 : FunctionConsumer,
                             val f2 : FunctionConsumer)
     : FunctionConsumer {
 
-    override fun run(input: Any?, consumer:  (Any?) -> Unit) {
+    override fun run(input: Any?, consumer:  OutputFunction) {
 
-        val csout : (Any?) -> Unit = {
-            data: Any? -> //GlobalScope.launch {
+        val csout : (String, Any?) -> Unit = {
+            branch: String, data: Any? -> //GlobalScope.launch {
                 f2.run(data, consumer)
             //}
         }
@@ -29,10 +27,6 @@ open class ChainedConsumers(val f1 : FunctionConsumer,
 }
 
 
-fun parallelizeConsumers(fs : List<(Any?) -> Unit>) : (Any?) -> Unit {
-    return { input : Any? ->  fs.forEach{ it(input) } }
+fun parallelizeConsumers(fs : List<OutputFunction>) : OutputFunction {
+    return { branch : String, input : Any? ->  fs.forEach{ it(branch, input) } }
 }
-
-
-
-
