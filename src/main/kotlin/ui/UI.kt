@@ -41,6 +41,7 @@ import tornadofx.*
 
 import java.io.File
 import java.util.*
+import kotlin.math.abs
 
 
 class GraphicEvent(private val g : GraphicsContext) {
@@ -121,9 +122,10 @@ class LinkUI(val g : GraphicsContext,
         this.g.font = Font.font("Verdana", 11.0)
 
         val position = (start * 8.0 + end * 2.0) / 10.0
+        val unitVector = (end - start).unit()
         this.g.fillText("${link.name()}",
-            position.x,
-            position.y - 10.0)
+            position.x + 10.0 * unitVector.y,
+            position.y - 10.0 * abs(unitVector.x))
         this.g.restore()
     }
 
@@ -335,6 +337,7 @@ class FilterChoices(ownerStage : Stage) {
         val observableNames : ObservableList<String> = FXCollections.observableArrayList<String>()
         names.forEach(observableNames::add)
         val namesView = ListView(observableNames)
+        namesView.selectionModel.selectionMode = SelectionMode.MULTIPLE
         root.center = namesView
 
         val okButton = Button("Ok")

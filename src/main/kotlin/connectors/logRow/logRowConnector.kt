@@ -39,6 +39,7 @@ class LogRowConnector(config : Config) : Connector(config) {
 
     init {
         logger = KotlinLogging.logger {}
+        // TODO : init logger from "config" file
        // val formatter = SimpleFormatter()
     }
 

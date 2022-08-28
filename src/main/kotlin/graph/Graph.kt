@@ -26,6 +26,8 @@ class Edge<T, U> internal constructor(val data : U,
 @Serializable
 class Graph<T, U> internal constructor(val nodes : Map<UUID, Node<T,U>>,
                   val edges : Map<UUID, Edge<T,U>>) {
+    // TODO : Add a function to walk into graph from sources nodes to sink nodes
+
     fun visit(start : Node<T, U>,
               selectNext : (nodeData : Node<T, U>,
                             next : Collection<Edge<T, U>>,
@@ -110,13 +112,41 @@ class EdgeBuilder<T, U> internal constructor(val data : U, val next : NodeBuilde
     }
 }
 
+
 class GraphBuilder<T, U>() {
     private val nodeBuilders = mutableListOf<NodeBuilder<T, U>>()
+
+    // TODO:  Allow Run menu only if not empty & isConnected
+    // TODO : detect cycles (to unallow it)
 
     fun addNode(data : T) : NodeBuilder<T, U> {
         val builder = NodeBuilder<T, U>(this, data)
         this.nodeBuilders.add(builder)
         return builder
+    }
+
+    fun isEmpty() : Boolean = this.nodeBuilders.isEmpty()
+
+    fun isConnected() : Boolean {
+        if (this.isEmpty()) {
+            return true
+        }
+        val visitedNode = mutableSetOf<UUID>()
+        val currentNodes = ArrayDeque<NodeBuilder<T, U>>(5)
+        currentNodes.add(this.nodeBuilders[0])
+        visitedNode.add(this.nodeBuilders[0].identifier)
+        while (!currentNodes.isEmpty()) {
+            val workingNode = currentNodes.removeFirst()
+            workingNode.nexts
+                .map( EdgeBuilder<T, U>::next )
+                .forEach {
+                    if (!visitedNode.contains(it.identifier)) {
+                        currentNodes.add(it)
+                        visitedNode.add(it.identifier)
+                    }
+                }
+        }
+        return visitedNode.size == this.nodeBuilders.size
     }
 
     fun removeNode(identifier: UUID) {

@@ -210,6 +210,8 @@ class BooleanType() : SimpleType() {
     }
 }
 
+// TODO : Add type "LocalFileType", "RealNumberType" at least
+
 class ConfigDescription(val description: ComposedType) {
 
     fun isCompliant(c : Config) : Boolean {
