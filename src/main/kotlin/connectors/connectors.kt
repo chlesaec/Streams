@@ -247,8 +247,13 @@ data class Version(val v: List<Int>) : Comparable<Version> {
 data class VersionedIdentifier(
     val name: String,
     val version: Version
-) {
+)
 
+fun findImage(name: String) : Image {
+    val resource = Thread.currentThread().contextClassLoader.getResource(name) ?: Thread.currentThread().contextClassLoader.getResource("./" + name)
+    resource.openStream().use {
+        return Image(it)
+    }
 }
 
 open class ConnectorDesc(

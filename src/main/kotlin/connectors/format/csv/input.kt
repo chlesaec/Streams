@@ -23,7 +23,7 @@ object CsvReaderDescriptor :
         LinkInput(arrayOf(InputRecord::class)),
         LinkOutput().add("main", CSVRecord::class),
         csvConfigDescription,
-        { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./csv.png").path) },
+        { findImage("csv.png") },
         { j: JobConnectorData, c : Config -> CSVReaderConnector(c) }
     )
 {

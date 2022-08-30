@@ -41,7 +41,7 @@ object LocalFileDescriptor :
             LinkOutput().add("main", InputRecord::class)
                 .add("error", RowError::class),
             localFileConfigDescription,
-            { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./iconFiles.png").path) },
+            { findImage("iconFiles.png") },
             { j: JobConnectorData,  c : Config -> LocalFileConnector(c) })
          {
             init {

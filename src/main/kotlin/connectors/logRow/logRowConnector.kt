@@ -25,7 +25,7 @@ object LogRowDescriptor :
         LinkInput(arrayOf(Any::class)),
         LinkOutput(),
         LogConfigDescription,
-        { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./iconFiles.png").path) },
+        { findImage("iconFiles.png") },
         { j: JobConnectorData, c : Config -> LogRowConnector(c) })
 {
     init {

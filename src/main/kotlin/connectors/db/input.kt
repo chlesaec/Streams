@@ -36,7 +36,7 @@ object DBDescriptor :
         LinkInput(arrayOf()),
         LinkOutput().add("main", InputRecord::class),
         databaseConfigDescription,
-        { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./iconFiles.png").path) },
+        { findImage("iconFiles.png") },
         { j: JobConnectorData, c : Config -> DatabaseInputConnector(c, j) })
 {
     init {

@@ -38,8 +38,9 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import runner.JobRunner
 import tornadofx.*
-
 import java.io.File
+import java.net.URL
+import java.net.URLClassLoader
 import java.util.*
 import kotlin.math.abs
 
@@ -700,6 +701,9 @@ fun initConectors() {
 }
 
 fun main(args: Array<String>) {
+    println("source ${Thread.currentThread().contextClassLoader.getResource(".")}")
+    println("source ${Thread.currentThread().contextClassLoader.getResource("iconFiles.png").path}")
+
     initConectors()
     launch<Studio>(args)
 }
