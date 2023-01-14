@@ -23,7 +23,7 @@ internal class JobRunnerTest {
             LinkInput(arrayOf(Nothing::class)),
             LinkOutput().add("*",  Int::class),
             ConfigDescription(ComposedType(Fields.Builder().build())),
-            { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
+            { findImage("icon1.png") }
         ) { j: JobConnectorData,  c: Config -> IntGenerator(c) }
 
         val conf = Config.Builder()
@@ -51,7 +51,7 @@ internal class JobRunnerTest {
             LinkInput(arrayOf(Int::class)),
             LinkOutput().add("*",  Int::class),
             ConfigDescription(ComposedType(Fields.Builder().build())),
-            { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
+            { findImage("icon1.png") }
         ) { j: JobConnectorData, c: Config -> IntInc(c) }
         val cdata2 = JobConnectorData(JobConfig(), desc2, "name", "id")
         val c2 = JobConnector(cdata2, Config.Builder().build())
@@ -62,7 +62,7 @@ internal class JobRunnerTest {
             LinkInput(arrayOf(Int::class)),
             LinkOutput().add("*",  Int::class),
             ConfigDescription(ComposedType(Fields.Builder().build())),
-            { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
+            { findImage("icon1.png") }
         ) { j: JobConnectorData, c: Config -> IntDouble(c) }
         val cdata2Bis = JobConnectorData(JobConfig(), desc2Bis, "name", "id")
         val c2Bis = JobConnector(cdata2Bis, Config.Builder().build())
@@ -73,7 +73,7 @@ internal class JobRunnerTest {
             LinkInput(arrayOf(Int::class)),
             LinkOutput(),
             ConfigDescription(ComposedType(Fields.Builder().build())),
-            { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
+            { findImage("icon1.png") }
         ) { j: JobConnectorData, c: Config -> IntReg(c) }
         val cdata3 = JobConnectorData(JobConfig(), desc3, "name", "id")
         val c3 = JobConnector(cdata3, Config.Builder().build())

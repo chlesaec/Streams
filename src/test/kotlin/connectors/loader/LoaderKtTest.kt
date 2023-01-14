@@ -71,7 +71,7 @@ class LoaderKtTest {
           LinkInput(arrayOf(Int::class)),
           LinkOutput().add("main", Int::class),
           ConfigDescription(ComposedType(Fields.Builder().build())),
-          { Image("file:" + Thread.currentThread().contextClassLoader.getResource("./icon1.png")) }
+          { findImage("icon1.png") }
       ) { j: JobConnectorData, c: Config -> FakeConnector(c) }
       Connectors.register(desc)
     }

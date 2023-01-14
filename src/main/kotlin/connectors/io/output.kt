@@ -31,7 +31,7 @@ object LocalFileOutputDescriptor :
         LinkInput(arrayOf(ByteReader::class, InputRecord::class)),
         LinkOutput(),
         localFileOutputConfigDescription,
-        { Image("file:" +  Thread.currentThread().contextClassLoader.getResource("./icon1.png").path) },
+        { findImage("icon1.png") },
         { j: JobConnectorData, c : Config -> LocalFileOutputConnector(c) }
     ) {
     init {
