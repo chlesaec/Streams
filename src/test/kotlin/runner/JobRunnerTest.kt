@@ -3,6 +3,7 @@ package runner
 import commons.Coordinate
 import configuration.Config
 import connectors.*
+import functions.InputItem
 import functions.OutputFunction
 import graph.Graph
 import graph.GraphBuilder
@@ -92,7 +93,7 @@ internal class JobRunnerTest {
 }
 
 class IntGenerator(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: OutputFunction) {
+    override fun run(item: InputItem, output: OutputFunction) {
         val start = config.get("start")?.toInt() ?: 0
         val end = config.get("end")?.toInt() ?: start + 100
         val step = config.get("step")?.toInt() ?: 1
@@ -103,7 +104,8 @@ class IntGenerator(config : Config) : Connector(config) {
 }
 
 class IntInc(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: OutputFunction) {
+    override fun run(item: InputItem, output: OutputFunction) {
+        val input = item.input
         if (input is Int) {
             val next = input + 1
             output("main", next)
@@ -112,7 +114,8 @@ class IntInc(config : Config) : Connector(config) {
 }
 
 class IntDouble(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: OutputFunction) {
+    override fun run(item: InputItem, output: OutputFunction) {
+        val input = item.input
         if (input is Int) {
             val next = input * 2
             output("main", next)
@@ -121,8 +124,8 @@ class IntDouble(config : Config) : Connector(config) {
 }
 
 class IntReg(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: OutputFunction) {
-        if (input is Int) {
+    override fun run(item: InputItem, output: OutputFunction) {
+        if (item.input is Int) {
 
         }
     }

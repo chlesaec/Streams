@@ -2,6 +2,7 @@ package connectors.io
 
 import configuration.Config
 import connectors.*
+import functions.InputItem
 import functions.OutputFunction
 import javafx.scene.image.Image
 import job.JobConnectorData
@@ -39,7 +40,8 @@ object LocalFileOutputDescriptor :
 }
 
 class LocalFileOutputConnector(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: OutputFunction) {
+    override fun run(item: InputItem, output: OutputFunction) {
+        val input = item.input;
         if (input is ByteReader) {
             val file = Path.of(config.get("path"))
 

@@ -4,6 +4,7 @@ import com.zaxxer.hikari.HikariDataSource
 import configuration.Config
 import connectors.Connector
 import connectors.JobConfig
+import functions.InputItem
 import job.JobConnectorData
 import org.h2.tools.Server
 import org.junit.jupiter.api.Test
@@ -44,7 +45,7 @@ internal class DBDescriptorTest {
         val jcd = JobConnectorData(jobCfg, DBDescriptor, "C1", "id1")
         val connector: Connector = DBDescriptor.build(jcd, config)
         connector.initialize(config, jcd)
-        connector.run(null) { branch: String, item: Any? ->
+        connector.run(InputItem(jcd,null)) { branch: String, item: Any? ->
             if (item != null) {
                 println(item.toString())
             }

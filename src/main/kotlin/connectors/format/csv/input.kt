@@ -3,6 +3,7 @@ package connectors.format.csv
 import configuration.Config
 import connectors.*
 import connectors.io.InputRecord
+import functions.InputItem
 import functions.OutputFunction
 import javafx.scene.image.Image
 import job.JobConnectorData
@@ -32,9 +33,9 @@ object CsvReaderDescriptor :
     }
 }
 class CSVReaderConnector(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: OutputFunction) {
-        if (input is InputRecord) {
-            input.consume {
+    override fun run(item: InputItem, output: OutputFunction) {
+        if (item.input is InputRecord) {
+            item.input.consume {
                 CSVFormat.DEFAULT
                     .parse(InputStreamReader(it))
                     .forEach { output("main", it) }

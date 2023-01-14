@@ -2,6 +2,7 @@ package connectors.loader
 
 import configuration.Config
 import connectors.*
+import functions.InputItem
 import functions.OutputFunction
 import javafx.scene.image.Image
 import job.JobBuilder
@@ -126,7 +127,7 @@ class LoaderKtTest {
 }
 
 class FakeConnector(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: OutputFunction) {
+    override fun run(input: InputItem, output: OutputFunction) {
         output("*", input)
     }
 }

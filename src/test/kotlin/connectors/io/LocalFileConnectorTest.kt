@@ -3,6 +3,7 @@ package connectors.io
 import configuration.Config
 import connectors.JobConfig
 import functions.FunctionConsumer
+import functions.InputItem
 import job.JobConnectorData
 import org.junit.jupiter.api.Test
 import java.io.InputStream
@@ -31,7 +32,7 @@ internal class LocalFileConnectorTest {
             content = input.readAllBytes().decodeToString()
         }
 
-        f.run(null) {
+        f.run(InputItem(jcf,null)) {
             branch: String, output : Any? ->
             if (output is InputRecord) {
                 output.consume(finput)

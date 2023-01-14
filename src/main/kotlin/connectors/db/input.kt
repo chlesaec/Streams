@@ -5,6 +5,7 @@ import configuration.Config
 import connectors.*
 import connectors.generators.*
 import connectors.io.InputRecord
+import functions.InputItem
 import functions.OutputFunction
 import javafx.scene.image.Image
 import job.JobConnectorData
@@ -68,7 +69,7 @@ class DatabaseInputConnector(config : Config,
     }
 
 
-    override fun run(input: Any?, output: OutputFunction) {
+    override fun run(input: InputItem, output: OutputFunction) {
         this.source.connection.use {
             val query: PreparedStatement = it.prepareStatement("SELECT * FROM ${tableName}")
             query.use {

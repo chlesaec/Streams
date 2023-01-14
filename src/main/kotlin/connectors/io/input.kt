@@ -8,6 +8,7 @@ import com.amazonaws.services.s3.model.GetObjectRequest
 import configuration.Config
 import connectors.*
 import connectors.commons.RowError
+import functions.InputItem
 import functions.OutputFunction
 import javafx.scene.image.Image
 import job.JobConnectorData
@@ -50,7 +51,7 @@ object LocalFileDescriptor :
         }
 
 class LocalFileConnector(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: OutputFunction) {
+    override fun run(input: InputItem, output: OutputFunction) {
         val root = config.get("root") ?: ""
         val rootPath = Path.of(root)
         val pattern = config.get("pattern") ?: ""
@@ -98,7 +99,7 @@ class LocalFileConnector(config : Config) : Connector(config) {
 
 class S3Input(config: Config) : Connector(config) {
     
-    override fun run(input: Any?, output: OutputFunction) {
+    override fun run(input: InputItem, output: OutputFunction) {
         val keyName = config.get("key") ?: ""
         val bucketName = config.get("bucket") ?: ""
         val request =  GetObjectRequest(bucketName, keyName)

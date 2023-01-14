@@ -1,6 +1,7 @@
 package runner
 
 import functions.FunctionConsumer
+import functions.InputItem
 import graph.Node
 import javafx.application.Application.launch
 import job.*
@@ -15,39 +16,18 @@ interface Runner {
     fun compile(job: Job) : () -> Unit
 }
 
-class NextRunner(val filter: NextFilter, val item: RunnerItem) {
-    fun select(name: String) = this.filter.select(name)
-}
-
-class RunnerItem(val function : FunctionConsumer,
-                 val nexts : List<NextRunner>) {
-
-    fun execute(element: Any?) {
-        function.run(element) {
-                branchName: String, targetElement : Any? ->
-                nexts.filter { it.select(branchName) }
-                .forEach {
-                    it.item.execute( targetElement)
-                }
-        }
-    }
-}
-
 class EndRunner(val identifier : UUID)
-
-interface EventHandler {
-    fun elementReceived(element: Any?)
-}
 
 class LinkedRunnerItem(
     val link: JobLink?,
     val runner : RunnerItemChannel)
 
 class RunnerItemChannel(val function : FunctionConsumer,
+                        val data: JobConnectorData,
                         val nexts : List<LinkedRunnerItem>) {
-    val queue = Channel<Pair<String, Any?>> {}
+    val queue = Channel<Pair<String, InputItem>> {}
 
-    val identifier = UUID.randomUUID()
+    private val identifier: UUID = UUID.randomUUID()
 
     val precedents = HashSet<UUID>()
 
@@ -58,7 +38,7 @@ class RunnerItemChannel(val function : FunctionConsumer,
             started = true
             this.consumeChannel()
         }
-        queue.send(Pair(branch, element))
+        queue.send(Pair(branch, InputItem(this.data, element)))
     }
 
     fun initialize() {
@@ -73,9 +53,9 @@ class RunnerItemChannel(val function : FunctionConsumer,
         GlobalScope.launch {
             while (this@RunnerItemChannel.precedents.isNotEmpty()) {
                 for (pairElem in this@RunnerItemChannel.queue) {
-                    val element = pairElem.second
-                    if (element is EndRunner) {
-                        this@RunnerItemChannel.precedents.remove(element.identifier)
+                    val element : InputItem = pairElem.second
+                    if (element.input is EndRunner) {
+                        this@RunnerItemChannel.precedents.remove(element.input.identifier)
                     }
                     else {
                         function.run(element) { branch: String, targetElement: Any? ->
@@ -157,7 +137,9 @@ class JobRunner() : Runner {
         }
             .filterNotNull()
             .toList();
-        val item = RunnerItemChannel(connectors[node.identifier]!!, nextRunners)
+        val item = RunnerItemChannel(connectors[node.identifier]!!,
+            node.data.connectorData,
+            nextRunners)
         val linkedRunner = LinkedRunnerItem(linkTo, item)
         allNode.remove(node.identifier)
         runners[node.identifier] = linkedRunner

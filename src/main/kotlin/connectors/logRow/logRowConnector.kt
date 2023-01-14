@@ -3,6 +3,7 @@ package connectors.logRow
 import configuration.Config
 import connectors.*
 import connectors.commons.RowError
+import functions.InputItem
 
 import functions.OutputFunction
 import javafx.scene.image.Image
@@ -43,7 +44,8 @@ class LogRowConnector(config : Config) : Connector(config) {
        // val formatter = SimpleFormatter()
     }
 
-    override fun run(input: Any?, output: OutputFunction) {
+    override fun run(item: InputItem, output: OutputFunction) {
+        val input = item.input;
         if (input is RowError) {
             input.log(this.logger)
         }

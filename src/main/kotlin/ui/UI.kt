@@ -10,6 +10,7 @@ import connectors.io.LocalFileOutputDescriptor
 import connectors.loader.JobLoader
 import connectors.loader.JobSaver
 import connectors.logRow.LogRowDescriptor
+import functions.InputItem
 import functions.OutputFunction
 import graph.GraphBuilder
 import graph.NodeBuilder
@@ -687,7 +688,7 @@ class Studio: App(StudioView::class) {
 }
 
 class VoidConnector(config : Config) : Connector(config) {
-    override fun run(input: Any?, output: OutputFunction) {
+    override fun run(input: InputItem, output: OutputFunction) {
     }
 }
 
