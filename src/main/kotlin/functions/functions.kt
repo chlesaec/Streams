@@ -1,11 +1,13 @@
 package functions
 
 import job.JobConnectorData
+import job.JobLinkData
 
 typealias OutputFunction = (String, Any?) -> Unit
 
 class InputItem(
     val connectorOrigin : JobConnectorData,
+    val linkOrigin: JobLinkData?,
     val input : Any?);
 
 interface FunctionConsumer {

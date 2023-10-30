@@ -78,13 +78,19 @@ class NextFilter(val names : Array<String>) {
     }
 }
 
-class JobLink(val view : LinkView, val filter: NextFilter) {
+class JobLinkData(val filter: NextFilter) {
+    fun name() : String {
+        return this.filter.names.joinToString(", ")
+    }
+}
+
+class JobLink(val view : LinkView, val data: JobLinkData) {
     fun onEvent(e: Event) {
         view.drawer?.updateCounter()
     }
 
     fun name() : String {
-        return this.filter.names.joinToString(", ")
+        return this.data.name()
     }
 }
 

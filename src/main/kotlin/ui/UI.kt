@@ -393,12 +393,15 @@ class ConfigView(
     private val connectorBuilder : JobConnectorBuilder,
     private val description: FieldType) {
 
-    fun buildNode() : javafx.scene.Node {
+    fun buildNode(node: JobNodeBuilder? = null) : javafx.scene.Node {
         var configBuilder = this.connectorBuilder.config
-        return this.buildNode("", configBuilder, this.description)
+        return this.buildNode("", configBuilder, node, this.description)
     }
 
-    private fun buildNode(name: String, config : Config.Builder, description: FieldType) : javafx.scene.Node {
+    private fun buildNode(name: String,
+                          config : Config.Builder,
+                          node: JobNodeBuilder?,
+                          description: FieldType) : javafx.scene.Node {
         val valueNode: javafx.scene.Node = when (description) {
             is BooleanType -> {
                 var value = config.get(name)
@@ -438,7 +441,7 @@ class ConfigView(
                         val sub: Config.Builder = config.getSub(it.first) ?:
                         config // .addSub(it.first, Config.Builder())
 
-                        this.buildNode(it.first, sub, it.second)
+                        this.buildNode(it.first, sub, node, it.second)
                     }.toTypedArray()
                 )
                 box.border = Border(BorderStroke(Color.BLACK,
@@ -447,6 +450,26 @@ class ConfigView(
                     BorderWidths.DEFAULT
                 ))
                 box
+            }
+            is PredecessorType -> {
+                // TODO
+                val pred = ListView<String>();
+                pred.selectionModel.selectionMode = SelectionMode.SINGLE
+                if (node != null) {
+                    pred.items = FXCollections.observableArrayList(node.findPredecessors()
+                        .map { it.first.data.name });
+                }
+                var value = config.get(name)
+                if (value == null) {
+                    value = ""
+                    config.add(name, "")
+                }
+                val textField = TextField(value)
+                textField.onKeyTyped = EventHandler {
+                        evt : KeyEvent ->
+                    config.add(name, textField.text)
+                }
+                HBox(Label(name), textField)
             }
         }
         return valueNode
@@ -625,7 +648,7 @@ class StudioView() : View("studio") {
             if (comp is JobNodeBuilder) {
                 val connector = comp.data
                 this.configView = ConfigView(connector, connector.connectorDesc.config.description)
-                root.right = this.configView?.buildNode()
+                root.right = this.configView?.buildNode(comp)
                 this.selectedConnector = connector
                 this.draw()
                 if (evt.button.ordinal == 1) {
@@ -639,7 +662,7 @@ class StudioView() : View("studio") {
                         filter.show(list,selection)
                         selection.toTypedArray()
                     }
-                    val lb = LinkBuilder(this.job, comp, selectFunction) { JobLink(LinkView(Color.BLACK, 3.0), NextFilter(it)) }
+                    val lb = LinkBuilder(this.job, comp, selectFunction) { JobLink(LinkView(Color.BLACK, 3.0), JobLinkData(NextFilter(it))) }
                     item.setOnAction { e : ActionEvent -> NewLinkDragger(center, comp, this::draw, lb::newLink) }
 
                     val deleteItem = MenuItem("delete")

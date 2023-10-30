@@ -38,7 +38,7 @@ class Error(val reason: String) : Result() {
     }
 }
 
-class LinkInput(val linkTypes : Array<KClass<out Any>>) {
+class LinkInput(val linkTypes: Array<KClass<out Any>>) {
 
     fun canSucceed(precClazz: LinkOutput): Array<String> {
         return this.linkTypes.map {
@@ -46,33 +46,22 @@ class LinkInput(val linkTypes : Array<KClass<out Any>>) {
             println("Succeed before reduce : ${ret.size}")
             ret
         }
-            .reduce{
-                l: Array<String>, r : Array<String> ->
+            .reduce { l: Array<String>, r: Array<String> ->
                 println("redure : ${l.size}")
                 Array(l.size + r.size) {
-                if (it < l.size) {
-                    l[it]
-                }
-                else {
-                    r[it - l.size]
-                }
-            }
-            }
-           /*
-            .reduce {
-                l: Array<String>, r : Array<String> -> Array(l.size + r.size) {
                     if (it < l.size) {
                         l[it]
-                    }
-                    else {
+                    } else {
                         r[it - l.size]
                     }
                 }
-            }*/
+            }
     }
 
-    private fun canSucceedClass(succ: KClass<out Any>,
-                                prec: LinkOutput): Array<String> {
+    private fun canSucceedClass(
+        succ: KClass<out Any>,
+        prec: LinkOutput
+    ): Array<String> {
         return prec.selectCompatibleOutput(succ)
     }
 }
@@ -80,20 +69,22 @@ class LinkInput(val linkTypes : Array<KClass<out Any>>) {
 class LinkOutput() {
     private val outputs = mutableMapOf<String, KClass<out Any>>()
 
-    fun add(name: String, clazz: KClass<out Any>) : LinkOutput {
+    fun add(name: String, clazz: KClass<out Any>): LinkOutput {
         this.outputs[name] = clazz
         return this
     }
 
-    fun selectCompatibleOutput(succ: KClass<out Any>) : Array<String> {
+    fun selectCompatibleOutput(succ: KClass<out Any>): Array<String> {
         return outputs.entries
             .filter { this.canSucceedClass(it.value, succ) }
             .map { it.key }
             .toTypedArray()
     }
 
-    private fun canSucceedClass(prec: KClass<out Any>,
-                                succ: KClass<out Any>): Boolean {
+    private fun canSucceedClass(
+        prec: KClass<out Any>,
+        succ: KClass<out Any>
+    ): Boolean {
         println("Prec ${prec.simpleName} is sub class of ${succ.simpleName} ${prec.isSubclassOf(succ)}")
         return prec.isSubclassOf(succ)
     }
@@ -104,12 +95,13 @@ interface Constraint<T> {
 }
 
 sealed interface FieldType {
-    fun valid(value: JsonElement) : Boolean
+    fun valid(value: JsonElement): Boolean
 
-    fun valid(value: String) : Boolean
+    fun valid(value: String): Boolean
 
-    fun valid(value: Config) : Boolean
+    fun valid(value: Config): Boolean
 }
+
 class ComposedType(val fields: Fields) : FieldType {
     override fun valid(value: JsonElement): Boolean {
         if (value !is JsonObject) {
@@ -118,17 +110,17 @@ class ComposedType(val fields: Fields) : FieldType {
         return true
     }
 
-    override fun valid(value: String) : Boolean {
+    override fun valid(value: String): Boolean {
         return false
     }
 
-    override fun valid(value: Config) : Boolean {
+    override fun valid(value: Config): Boolean {
         return this.fields.fields().all {
-            val content : String? = value.get(it.first)
+            val content: String? = value.get(it.first)
             if (content is String) {
                 return it.second.valid(content)
             }
-            val sub : Config? = value.sub(it.first)
+            val sub: Config? = value.sub(it.first)
             if (sub is Config) {
                 return it.second.valid(sub)
             }
@@ -139,7 +131,7 @@ class ComposedType(val fields: Fields) : FieldType {
 
 abstract class SimpleType : FieldType {
 
-    override fun valid(c : Config) : Boolean {
+    override fun valid(c: Config): Boolean {
         return false
     }
 
@@ -148,7 +140,7 @@ abstract class SimpleType : FieldType {
     }
 }
 
-object EmptyType: FieldType {
+object EmptyType : FieldType {
     override fun valid(value: JsonElement): Boolean = false
 
     override fun valid(value: String): Boolean = false
@@ -158,12 +150,12 @@ object EmptyType: FieldType {
 
 class Fields
 private constructor(
-        private val properties: Map<String, FieldType>
-)  {
+    private val properties: Map<String, FieldType>
+) {
     class Builder() {
         private val properties = HashMap<String, FieldType>()
 
-        fun add(name : String, prop : FieldType) : Builder {
+        fun add(name: String, prop: FieldType): Builder {
             this.properties[name] = prop
             return this
         }
@@ -175,11 +167,11 @@ private constructor(
         }
     }
 
-    fun field(name : String) : FieldType? {
+    fun field(name: String): FieldType? {
         return this.properties[name]
     }
 
-    fun fields() : List<Pair<String, FieldType>> {
+    fun fields(): List<Pair<String, FieldType>> {
         return this.properties.map {
             Pair(it.key, it.value)
         }
@@ -210,33 +202,37 @@ class BooleanType() : SimpleType() {
     }
 }
 
+class PredecessorType() : SimpleType() {
+    override fun valid(value: String): Boolean {
+        return true;
+    }
+
+}
+
 // TODO : Add type "LocalFileType", "RealNumberType" at least
 
 class ConfigDescription(val description: ComposedType) {
 
-    fun isCompliant(c : Config) : Boolean {
+    fun isCompliant(c: Config): Boolean {
         return true
     }
 }
 
 data class Version(val v: List<Int>) : Comparable<Version> {
     override fun compareTo(other: Version): Int {
-        var res : Int = 0
-        var index : Int = 0
+        var res: Int = 0
+        var index: Int = 0
         while (res == 0 && index < this.v.size && index < other.v.size) {
             res = if (this.v[index] > other.v[index]) {
                 1
-            }
-            else if (this.v[index] < other.v[index]) {
+            } else if (this.v[index] < other.v[index]) {
                 -1
-            }
-            else 0
+            } else 0
             index++
         }
         if (res == 0 && index < this.v.size) {
             res = 1
-        }
-        else if (res == 0 && index < other.v.size) {
+        } else if (res == 0 && index < other.v.size) {
             res = -1
         }
         return res
@@ -249,8 +245,9 @@ data class VersionedIdentifier(
     val version: Version
 )
 
-fun findImage(name: String) : Image {
-    val resource = Thread.currentThread().contextClassLoader.getResource(name) ?: Thread.currentThread().contextClassLoader.getResource("./" + name)
+fun findImage(name: String): Image {
+    val resource = Thread.currentThread().contextClassLoader.getResource(name)
+        ?: Thread.currentThread().contextClassLoader.getResource("./" + name)
     resource.openStream().use {
         return Image(it)
     }
@@ -261,8 +258,8 @@ open class ConnectorDesc(
     val intput: LinkInput,
     val output: LinkOutput,
     val config: ConfigDescription,
-    val icon : () -> Image,
-    val builder : (JobConnectorData, Config) -> Connector
+    val icon: () -> Image,
+    val builder: (JobConnectorData, Config) -> Connector
 ) {
 
     fun build(j: JobConnectorData, c: Config): Connector {
@@ -277,7 +274,7 @@ open class ConnectorDesc(
 class JobConfig() {
     val classLoader: ClassLoader by lazy {
         this.sources.forEach(this::compile)
-        val urlClasses : Array<URL> = Array(1) {
+        val urlClasses: Array<URL> = Array(1) {
             this.targetForlder().toURI().toURL()
         }
         URLClassLoader(urlClasses, JobConfig::class.java.classLoader)
@@ -291,11 +288,11 @@ class JobConfig() {
         this.sources.add(source)
     }
 
-    fun loadClass(name: String) : Class<*> {
+    fun loadClass(name: String): Class<*> {
         return this.classLoader.loadClass(name)
     }
 
-    private fun compile(source: File) : ExitCode {
+    private fun compile(source: File): ExitCode {
         val compilerArguments = K2JVMCompilerArguments();
         compilerArguments.freeArgs = listOf(source.path)
         compilerArguments.destination = targetForlder().path
@@ -306,12 +303,13 @@ class JobConfig() {
         val exitCode: ExitCode = K2JVMCompiler().exec(
             messageCollector,
             Services.Builder().build(),
-            compilerArguments)
+            compilerArguments
+        )
         return exitCode
     }
 
-    private fun targetForlder() : File =
-        File(rootFolder.toFile(),  "/generate")
+    private fun targetForlder(): File =
+        File(rootFolder.toFile(), "/generate")
 
 }
 
@@ -338,11 +336,11 @@ object Connectors {
         return null
     }
 
-    fun names() : Collection<String> = this.connectors.keys
+    fun names(): Collection<String> = this.connectors.keys
 
     fun register(connectorDesc: ConnectorDesc) {
-        val name : String = connectorDesc.identifier.name
-        val version : Version = connectorDesc.identifier.version
+        val name: String = connectorDesc.identifier.name
+        val version: Version = connectorDesc.identifier.version
         this.connectors.compute(name)
         { _: String, m: SortedMap<Version, ConnectorDesc>? ->
             val map: SortedMap<Version, ConnectorDesc> =

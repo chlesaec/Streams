@@ -79,12 +79,12 @@ internal class JobRunnerTest {
         val c3 = JobConnector(cdata3, Config.Builder().build())
         val node3 = graphJobBuilder.addNode(c3)
 
-        node1.addNext(node2, JobLink(LinkView(Color.BLUE, 3.0), NextFilter("*")))
-        node1Bis.addNext(node2, JobLink(LinkView(Color.BLUE, 3.0), NextFilter("*")))
-        node2.addNext(node3, JobLink(LinkView(Color.BLUE, 3.0), NextFilter("*")))
+        node1.addNext(node2, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
+        node1Bis.addNext(node2, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
+        node2.addNext(node3, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
 
-        node1.addNext(node2Bis, JobLink(LinkView(Color.BLUE, 3.0), NextFilter("*")))
-        node2Bis.addNext(node3, JobLink(LinkView(Color.BLUE, 3.0), NextFilter("*")))
+        node1.addNext(node2Bis, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
+        node2Bis.addNext(node3, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
 
         val graphJob : Graph<JobConnector, JobLink> = graphJobBuilder.build()
         val job = Job(graphJob)

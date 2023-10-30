@@ -6,6 +6,8 @@ import connectors.Connector
 import connectors.JobConfig
 import functions.InputItem
 import job.JobConnectorData
+import job.JobLinkData
+import job.NextFilter
 import org.h2.tools.Server
 import org.junit.jupiter.api.Test
 
@@ -43,9 +45,10 @@ internal class DBDescriptorTest {
         jobCfg.rootFolder = Path.of(
             Thread.currentThread().contextClassLoader.getResource(".").toURI() )
         val jcd = JobConnectorData(jobCfg, DBDescriptor, "C1", "id1")
+        val ld = JobLinkData(NextFilter("*"))
         val connector: Connector = DBDescriptor.build(jcd, config)
         connector.initialize(config, jcd)
-        connector.run(InputItem(jcd,null)) { branch: String, item: Any? ->
+        connector.run(InputItem(jcd,ld, null)) { branch: String, item: Any? ->
             if (item != null) {
                 println(item.toString())
             }

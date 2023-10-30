@@ -4,7 +4,7 @@ import configuration.Config
 import connectors.JobConfig
 import functions.FunctionConsumer
 import functions.InputItem
-import job.JobConnectorData
+import job.*
 import org.junit.jupiter.api.Test
 import java.io.InputStream
 import java.net.URL
@@ -24,6 +24,7 @@ internal class LocalFileConnectorTest {
             .build();
 
         val jcf = JobConnectorData(JobConfig(), LocalFileDescriptor, "n1", "id1")
+        val link = JobLinkData(NextFilter(("*")));
 
         val f: FunctionConsumer = LocalFileDescriptor.build(jcf, config)
         var content : String = ""
@@ -32,7 +33,7 @@ internal class LocalFileConnectorTest {
             content = input.readAllBytes().decodeToString()
         }
 
-        f.run(InputItem(jcf,null)) {
+        f.run(InputItem(jcf, link, null)) {
             branch: String, output : Any? ->
             if (output is InputRecord) {
                 output.consume(finput)

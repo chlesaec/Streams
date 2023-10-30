@@ -1,5 +1,7 @@
 package graph
 
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.serialization.Serializable
 import java.util.*
 
@@ -59,7 +61,7 @@ class Graph<T, U> internal constructor(val nodes : Map<UUID, Node<T,U>>,
 }
 
 class NodeBuilder<T, U> internal constructor(val g : GraphBuilder<T, U>, val data : T) : Identifiable() {
-    val nexts : MutableList<EdgeBuilder<T, U>> = mutableListOf<EdgeBuilder<T, U>>()
+    val nexts : MutableList<EdgeBuilder<T, U>> = mutableListOf()
 
     fun addNext(dataNext : T, edgeData : U) : EdgeBuilder<T, U> {
         val nextNode : NodeBuilder<T, U> = g.addNode(dataNext)
@@ -82,6 +84,12 @@ class NodeBuilder<T, U> internal constructor(val g : GraphBuilder<T, U>, val dat
                 index++
             }
         }
+    }
+
+    fun findPredecessors() : ImmutableList<Pair<NodeBuilder<T, U>, EdgeBuilder<T, U>>> {
+        return this.g.edges()
+            .filter { it.second.next == this }
+            .toImmutableList()
     }
 
     fun build() : Node<T, U> {

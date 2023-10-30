@@ -141,7 +141,7 @@ class JobLoader {
                             .map(JsonPrimitive::content)
                             .toTypedArray()
                     connectorFrom.addNext(connectorTo, JobLink(LinkView(Color.BLACK, 3.0),
-                        NextFilter(content)))
+                        JobLinkData(NextFilter(content))))
                 }
             }
         }
@@ -244,7 +244,7 @@ class JobSaver() {
             val obj = HashMap<String, JsonElement>()
             obj.put("from", JsonPrimitive(it.first.data.identifier))
             obj.put("to", JsonPrimitive(it.second.next.data.identifier))
-            obj.put("filter", JsonArray(it.second.data.filter.names.map { JsonPrimitive(it) }.toList()))
+            obj.put("filter", JsonArray(it.second.data.data.filter.names.map { JsonPrimitive(it) }.toList()))
             JsonObject(obj)
         }
         elements["links"] = JsonArray(edges)

@@ -24,6 +24,7 @@ class LinkedRunnerItem(
 
 class RunnerItemChannel(val function : FunctionConsumer,
                         val data: JobConnectorData,
+                        val link: JobLinkData?,
                         val nexts : List<LinkedRunnerItem>) {
     val queue = Channel<Pair<String, InputItem>> {}
 
@@ -38,7 +39,7 @@ class RunnerItemChannel(val function : FunctionConsumer,
             started = true
             this.consumeChannel()
         }
-        queue.send(Pair(branch, InputItem(this.data, element)))
+        queue.send(Pair(branch, InputItem(this.data, this.link, element)))
     }
 
     fun initialize() {
@@ -139,6 +140,7 @@ class JobRunner() : Runner {
             .toList();
         val item = RunnerItemChannel(connectors[node.identifier]!!,
             node.data.connectorData,
+            linkTo?.data,
             nextRunners)
         val linkedRunner = LinkedRunnerItem(linkTo, item)
         allNode.remove(node.identifier)

@@ -1,6 +1,5 @@
 package configuration
 
-import kotlinx.serialization.Serializable
 
 sealed interface Stack<out T>
 class End<out T> : Stack<T>
