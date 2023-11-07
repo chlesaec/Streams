@@ -2,11 +2,14 @@ package main
 
 import commons.Coordinate
 import graph.GraphBuilder
-import javafx.scene.image.Image
+import graph.UpdateGraphObserver
 import javafx.scene.paint.Color
 import job.*
 
-import java.util.*
+object TestObserver : UpdateGraphObserver<JobConnector, JobLink> {
+    override fun updatedPredecessors(current: JobConnector, nexts: List<Pair<JobConnector, JobLink>>) {
+    }
+}
 
 fun buildJob() : Job {
     val c1 = ComponentView(Coordinate(30.0, 30.0))
@@ -17,7 +20,7 @@ fun buildJob() : Job {
 
 
 
-    val graphBuilder = GraphBuilder<JobConnector, JobLink>();
+    val graphBuilder = GraphBuilder<JobConnector, JobLink>(TestObserver)
 
 
     return Job(graphBuilder.build())

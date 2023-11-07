@@ -4,17 +4,13 @@ import configuration.Config
 import connectors.*
 import connectors.commons.RowError
 import functions.InputItem
-
 import functions.OutputFunction
-import javafx.scene.image.Image
 import job.JobConnectorData
 import mu.KLogger
 import mu.KotlinLogging
-import java.util.logging.SimpleFormatter
 
 val LogConfigDescription = ConfigDescription(
-    ComposedType(
-        Fields.Builder()
+    ComposedType(Fields.Builder()
             .add("config", StringType())
             .build()
     )

@@ -17,8 +17,6 @@ import java.net.URL
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.util.*
-
-import kotlin.collections.HashMap
 import kotlin.reflect.KClass
 import kotlin.reflect.full.isSubclassOf
 
@@ -202,16 +200,62 @@ class BooleanType() : SimpleType() {
     }
 }
 
-class PredecessorType() : SimpleType() {
+
+class ComboType(val choices: List<String>) : SimpleType() {
     override fun valid(value: String): Boolean {
-        return true;
+        var res = this.choices.contains(value)
+        if (!res) {
+            val index = this.tryInt(value)
+            res = index >= 0 && index < this.choices.size
+        }
+        return res
+    }
+
+    private fun tryInt(value: String) : Int {
+        try {
+            return value.toInt()
+        }
+        catch (ex: NumberFormatException) {
+            return -1
+        }
+    }
+}
+
+class PredecessorType(val choicesGetter: () -> List<String>) : SimpleType() {
+    override fun valid(value: String): Boolean {
+        val choices = this.choicesGetter()
+        var res = choices.contains(value)
+        if (!res) {
+            val index = this.tryInt(value)
+            res = index >= 0 && index < choices.size
+        }
+        return res
+    }
+
+    private fun tryInt(value: String) : Int {
+        try {
+            return value.toInt()
+        }
+        catch (ex: NumberFormatException) {
+            return -1
+        }
     }
 
 }
 
 // TODO : Add type "LocalFileType", "RealNumberType" at least
 
+class Neighbour(val connector: ConnectorDesc,
+                val name: String,
+                val edgeName: String)
+
+interface NeighboursObserver {
+    fun onPredecessorUpdated(neighbours: List<Neighbour>)
+}
+
 class ConfigDescription(val description: ComposedType) {
+
+    var observer: NeighboursObserver? = null
 
     fun isCompliant(c: Config): Boolean {
         return true
@@ -261,14 +305,12 @@ open class ConnectorDesc(
     val icon: () -> Image,
     val builder: (JobConnectorData, Config) -> Connector
 ) {
-
     fun build(j: JobConnectorData, c: Config): Connector {
         if (!this.config.isCompliant(c)) {
             throw IllegalStateException("config not compliant")
         }
         return this.builder(j, c)
     }
-
 }
 
 class JobConfig() {
@@ -319,6 +361,10 @@ abstract class Connector(
 ) : FunctionConsumer {
 
     open fun initialize(config: Config, j: JobConnectorData) {}
+
+    open fun inputPriority() : List<String> = emptyList()
+
+    open fun end() {}
 }
 
 object Connectors {

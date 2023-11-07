@@ -10,7 +10,6 @@ import connectors.*
 import connectors.commons.RowError
 import functions.InputItem
 import functions.OutputFunction
-import javafx.scene.image.Image
 import job.JobConnectorData
 import java.io.IOException
 import java.io.InputStream
@@ -97,6 +96,36 @@ class LocalFileConnector(config : Config) : Connector(config) {
     }
 }
 
+val S3ConfigDescription = ConfigDescription(
+    ComposedType(Fields.Builder()
+            .add("key", StringType())
+            .add("bucket", StringType())
+            .add("credentials",
+                ComposedType(
+                    Fields.Builder()
+                        .add("accessKey", StringType())
+                        .add("secretKey", StringType())
+                        .build()
+                ))
+            .build()
+    )
+)
+
+object S3Descriptor :
+    ConnectorDesc(
+        VersionedIdentifier("S3 File Input", Version(listOf(1))),
+        LinkInput(arrayOf()),
+        LinkOutput().add("main", InputRecord::class)
+            .add("error", RowError::class),
+        S3ConfigDescription,
+        { findImage("iconS3.png") },
+        { j: JobConnectorData,  c : Config -> S3Input(c) })
+{
+    init {
+        Connectors.register(this)
+    }
+}
+
 class S3Input(config: Config) : Connector(config) {
     
     override fun run(input: InputItem, output: OutputFunction) {
@@ -106,7 +135,7 @@ class S3Input(config: Config) : Connector(config) {
 
         val credentials: Config? = config.sub["credentials"]
         val accessKey = credentials?.get("accessKey") ?: ""
-        val secretKey = credentials?.get("accessKey") ?: ""
+        val secretKey = credentials?.get("secretKey") ?: ""
 
         val awsCreds = BasicAWSCredentials(accessKey, secretKey)
 

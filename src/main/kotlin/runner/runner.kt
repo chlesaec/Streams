@@ -1,16 +1,16 @@
 package runner
 
-import functions.FunctionConsumer
+import connectors.Connector
 import functions.InputItem
 import graph.Node
-import javafx.application.Application.launch
 import job.*
-import job.Job
-import kotlinx.coroutines.*
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.util.*
 import kotlin.collections.HashMap
-import kotlin.collections.HashSet
 
 interface Runner {
     fun compile(job: Job) : () -> Unit
@@ -22,76 +22,189 @@ class LinkedRunnerItem(
     val link: JobLink?,
     val runner : RunnerItemChannel)
 
-class RunnerItemChannel(val function : FunctionConsumer,
+class InputQueue(val pattern: String,
+                 val nbeProducer: Int) {
+    val inputQueue = Channel<Pair<String, InputItem>> {}
+
+    var endProducer = 0
+
+    suspend fun send(branch: String, item: InputItem) {
+        inputQueue.send(Pair(branch, item))
+    }
+
+    suspend fun forEach(f: (InputItem) -> Unit) {
+        for (pairElem in inputQueue) {
+            if (pairElem.second.input is EndRunner) {
+                this.endProducer++
+            }
+            f(pairElem.second)
+        }
+    }
+
+    fun isTerminated() : Boolean = this.endProducer >= this.nbeProducer
+}
+
+class InputQueues {
+    val inputQueues: List<InputQueue>
+
+    val onEnd: (EndRunner) -> Unit
+
+    var currentQueue = 0
+
+    constructor(
+        item: RunnerItemChannel,
+        onEnd: (EndRunner) -> Unit
+    ) {
+        val priorities = item.connector.inputPriority()
+        this.onEnd = onEnd
+
+        this.inputQueues = if (priorities.isEmpty()) {
+            val nbePred = if (item.precedessors.isEmpty()) 1 else item.precedessors.size
+            listOf(InputQueue("*", nbePred))
+        } else {
+            priorities.map {
+                pattern: String ->
+                val count = item.precedessors
+                    .filter {
+                        pattern == "*" ||
+                                (it.link != null && it.link.endName == pattern)
+                    }
+                    .count()
+                InputQueue(pattern , count)
+            }
+        }
+    }
+
+    suspend fun send(branch: JobLinkData?, item: InputItem) {
+        val nextName = branch?.endName ?: "*"
+        this.inputQueues.find { it.pattern == nextName }
+        val queue: InputQueue? = this.inputQueues.find { it.pattern == nextName }
+        if (queue == null) {
+            throw IllegalArgumentException("Queue ${nextName} does not exists")
+        }
+        queue.send(nextName, item)
+    }
+
+    /**
+     * Consume current queue.
+     */
+    suspend fun forEach(f: (InputItem) -> Unit) {
+        if (!this.isTerminated()) {
+            val inQueue = inputQueues[currentQueue]
+            inQueue.forEach{
+                f(it)
+                if (it.input is EndRunner) { // FIXME: only end of one sub queue.
+                    if (inQueue.isTerminated()) {
+                        this.currentQueue++
+                        if (this.isTerminated()) {
+                            this.onEnd(it.input)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun isTerminated() : Boolean = this.currentQueue >= this.inputQueues.size
+}
+
+
+class RunnerItemChannel(val connector : Connector,
                         val data: JobConnectorData,
                         val link: JobLinkData?,
                         val nexts : List<LinkedRunnerItem>) {
-    val queue = Channel<Pair<String, InputItem>> {}
+    var inputQueues : InputQueues? = null
 
     private val identifier: UUID = UUID.randomUUID()
 
-    val precedents = HashSet<UUID>()
+    val activePredecessors = HashSet<UUID>()
 
-    var started = false
+    val precedessors = mutableListOf<RunnerItemChannel>()
 
-    suspend fun execute(branch: String, element: Any?) {
-        if (!started) {
-            started = true
-            this.consumeChannel()
-        }
-        queue.send(Pair(branch, InputItem(this.data, this.link, element)))
+    suspend fun sendTo(from: JobLinkData?, element: Any?) {
+        inputQueues?.send(from, InputItem(this.data, from, element))
     }
 
     fun initialize() {
-        this.nexts.forEach { it.runner.declarePrecedent(this.identifier) }
+        this.nexts.forEach {
+            it.runner.declarePredecessor(this.identifier)
+            it.runner.precedessors.add(this)
+        }
     }
 
-    fun declarePrecedent(identifier : UUID) {
-        this.precedents.add(identifier)
+    fun postInitialize() {
+        this.inputQueues = InputQueues(this, this::onEndRunner)
+        GlobalScope.launch {
+            this@RunnerItemChannel.consumeChannel()
+        }
+    }
+
+    private fun onEndRunner(endElement: EndRunner) {
+        this.connector.end()
+
+        val terminate = EndRunner(this@RunnerItemChannel.identifier)
+        GlobalScope.launch {
+            this@RunnerItemChannel.nexts.forEach {
+                it.link?.onEvent(EndEvent)
+                it.runner.sendTo(this@RunnerItemChannel.link, terminate)
+            }
+        }
+    }
+
+    fun declarePredecessor(identifier: UUID) {
+        this.activePredecessors.add(identifier)
+    }
+
+    fun isTerminated() : Boolean {
+        return this@RunnerItemChannel.inputQueues?.isTerminated() ?: true
     }
 
     private suspend fun consumeChannel() {
         GlobalScope.launch {
-            while (this@RunnerItemChannel.precedents.isNotEmpty()) {
-                for (pairElem in this@RunnerItemChannel.queue) {
-                    val element : InputItem = pairElem.second
-                    if (element.input is EndRunner) {
-                        this@RunnerItemChannel.precedents.remove(element.input.identifier)
-                    }
-                    else {
-                        function.run(element) { branch: String, targetElement: Any? ->
-                            GlobalScope.launch {
-                                nexts.forEach {
-                                    it.link?.onEvent(ItemEvent)
-                                    it.runner.execute(branch, targetElement)
-                                }
-                            }
+            while (!isTerminated()) {
+
+                this@RunnerItemChannel.inputQueues?.forEach {
+                    element : InputItem ->
+                    if (!(element.input is EndRunner)) {
+                        connector.run(element) { branch: String, generatedElement: Any? ->
+                            this@RunnerItemChannel.sendNext(generatedElement)
                         }
                     }
                 }
-                if (this@RunnerItemChannel.precedents.isNotEmpty()) {
+                if (!isTerminated()) {
                     delay(30)
                 }
-                else {
-                    val terminate = EndRunner(this@RunnerItemChannel.identifier)
-                    this@RunnerItemChannel.nexts.forEach {
-                        it.link?.onEvent(EndEvent)
-                        it.runner.execute("*", terminate)
-                    }
+            }
+        }
+    }
+
+    private fun sendNext(generatedElement: Any?) {
+        runBlocking {
+            launch {
+                nexts.forEach {
+                    it.link?.onEvent(ItemEvent)
+                    it.runner.sendTo(it.link?.data, generatedElement)
                 }
             }
         }
     }
 }
 
-class RunableJob(val startNodes : List<LinkedRunnerItem>) {
+class RunableJob(val startNodes : List<LinkedRunnerItem>,
+                 val allNodes: Collection<LinkedRunnerItem>) {
     fun execute() {
         runBlocking {
             val identifier = UUID.randomUUID()
+
             startNodes.map(LinkedRunnerItem::runner).forEach {
-                it.declarePrecedent(identifier)
-                it.execute("*", null)
-                it.execute("*", EndRunner(identifier))
+                it.declarePredecessor(identifier)
+                GlobalScope.launch {
+                    it.sendTo(null, null)
+                    it.sendTo(null, EndRunner(identifier))
+                }
+            }
+            while (allNodes.filter { !it.runner.isTerminated() }.isNotEmpty() ) {
+                delay(300)
             }
         }
     }
@@ -99,7 +212,7 @@ class RunableJob(val startNodes : List<LinkedRunnerItem>) {
 
 class JobRunner() : Runner {
     override fun compile(job: Job): () -> Unit {
-        val connectors : Map<UUID, FunctionConsumer> = job.graph.nodes.entries.associate {
+        val connectors : Map<UUID, Connector> = job.graph.nodes.entries.associate {
             val jobItem: JobConnector = it.value.data
             val f = jobItem.buildConnector()
             Pair(it.key, f)
@@ -117,17 +230,18 @@ class JobRunner() : Runner {
             }
         }
         runners.values.map(LinkedRunnerItem::runner).forEach(RunnerItemChannel::initialize)
+        runners.values.map(LinkedRunnerItem::runner).forEach(RunnerItemChannel::postInitialize)
         val startNode = job.graph.nodes
             .filter { it.value.precs.isEmpty() }
             .map { runners[ it.key ]!! }
             .toList()
-        return RunableJob(startNode)::execute
+        return RunableJob(startNode, runners.values)::execute
     }
 
     private fun buildRunner(runners : MutableMap<UUID, LinkedRunnerItem>,
                             node : Node<JobConnector, JobLink>,
                             linkTo: JobLink?,
-                            connectors : Map<UUID, FunctionConsumer>,
+                            connectors : Map<UUID, Connector>,
                             allNode : MutableSet<UUID>) {
         val nextRunners : List<LinkedRunnerItem> = node.nexts.map {
             val nextNode = it.end

@@ -1,7 +1,6 @@
 package collections.map
 
-import java.util.Collections
-import java.util.NoSuchElementException
+import java.util.*
 
 /**
  * Iterate on a Tree.

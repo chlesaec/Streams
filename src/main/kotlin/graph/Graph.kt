@@ -60,30 +60,44 @@ class Graph<T, U> internal constructor(val nodes : Map<UUID, Node<T,U>>,
     }
 }
 
-class NodeBuilder<T, U> internal constructor(val g : GraphBuilder<T, U>, val data : T) : Identifiable() {
-    val nexts : MutableList<EdgeBuilder<T, U>> = mutableListOf()
+interface UpdateGraphObserver<T, U> {
+    fun updatedPredecessors(current: T, nexts: List<Pair<T, U>>) : Unit
+}
 
-    fun addNext(dataNext : T, edgeData : U) : EdgeBuilder<T, U> {
-        val nextNode : NodeBuilder<T, U> = g.addNode(dataNext)
-        return this.addNext(nextNode, edgeData)
-    }
+class NodeBuilder<T, U> internal constructor(val g : GraphBuilder<T, U>,
+                                             val data : T,
+                                             val observer: UpdateGraphObserver<T, U>) : Identifiable() {
+    val nexts : MutableList<EdgeBuilder<T, U>> = mutableListOf()
 
     fun addNext(next : NodeBuilder<T, U>, edgeData : U) : EdgeBuilder<T, U> {
         val e = EdgeBuilder<T, U>(edgeData, next)
         this.nexts.add(e)
+        this.informObserver(next)
         return e
     }
 
     fun removeNext(identifier: UUID) {
         var index = 0
+        var next: NodeBuilder<T, U>? = null
         while (index < this.nexts.size) {
             if (this.nexts[index].next.identifier == identifier) {
+                next = this.nexts[index].next
                 this.nexts.removeAt(index)
             }
             else {
                 index++
             }
         }
+        if (next != null) {
+            this.informObserver(next)
+        }
+    }
+
+    private fun informObserver(next : NodeBuilder<T, U>) {
+        val predecessorData = next.findPredecessors().map {
+            Pair(it.first.data, it.second.data)
+        }
+        this.observer.updatedPredecessors(this.data, predecessorData)
     }
 
     fun findPredecessors() : ImmutableList<Pair<NodeBuilder<T, U>, EdgeBuilder<T, U>>> {
@@ -121,14 +135,14 @@ class EdgeBuilder<T, U> internal constructor(val data : U, val next : NodeBuilde
 }
 
 
-class GraphBuilder<T, U>() {
+class GraphBuilder<T, U>(val observer: UpdateGraphObserver<T, U>) {
     private val nodeBuilders = mutableListOf<NodeBuilder<T, U>>()
 
     // TODO:  Allow Run menu only if not empty & isConnected
     // TODO : detect cycles (to unallow it)
 
     fun addNode(data : T) : NodeBuilder<T, U> {
-        val builder = NodeBuilder<T, U>(this, data)
+        val builder = NodeBuilder<T, U>(this, data, observer)
         this.nodeBuilders.add(builder)
         return builder
     }

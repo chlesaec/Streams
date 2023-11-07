@@ -5,15 +5,13 @@ import connectors.*
 import connectors.io.InputRecord
 import functions.InputItem
 import functions.OutputFunction
-import javafx.scene.image.Image
 import job.JobConnectorData
 import org.apache.commons.csv.CSVFormat
 import org.apache.commons.csv.CSVRecord
 import java.io.InputStreamReader
 
 val csvConfigDescription = ConfigDescription(
-    ComposedType(
-        Fields.Builder()
+    ComposedType(Fields.Builder()
             .add("separator", StringType())
             .build()
     )

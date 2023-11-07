@@ -5,14 +5,10 @@ import configuration.Config
 import connectors.Connector
 import connectors.ConnectorDesc
 import connectors.JobConfig
-import functions.FunctionConsumer
-import graph.EdgeBuilder
-import graph.Graph
-import graph.GraphBuilder
-import graph.NodeBuilder
+import connectors.Neighbour
+import graph.*
 import javafx.scene.image.Image
 import javafx.scene.paint.Color
-import kotlinx.serialization.Serializable
 import runner.Runner
 
 
@@ -78,7 +74,8 @@ class NextFilter(val names : Array<String>) {
     }
 }
 
-class JobLinkData(val filter: NextFilter) {
+class JobLinkData(val filter: NextFilter,
+    val endName: String = "*") {
     fun name() : String {
         return this.filter.names.joinToString(", ")
     }
@@ -94,8 +91,9 @@ class JobLink(val view : LinkView, val data: JobLinkData) {
     }
 }
 
-
-
+/**
+ * Define a connector builder for job.
+ */
 class JobConnectorBuilder(val name : String,
                           val identifier : String,
                           val connectorDesc: ConnectorDesc,
@@ -121,6 +119,20 @@ class JobConnectorBuilder(val name : String,
 
     fun show(graphicFunction : (Coordinate, Image) -> Unit) {
         graphicFunction(this.view.position, this.connectorDesc.icon())
+    }
+}
+
+object JobGraphObserver: UpdateGraphObserver<JobConnectorBuilder, JobLink> {
+
+    override fun updatedPredecessors(current: JobConnectorBuilder,
+                                     nexts: List<Pair<JobConnectorBuilder, JobLink>>) {
+        val observer = current.connectorDesc.config.observer
+        if (observer != null) {
+            val neighbours: List<Neighbour> = nexts.map {
+                Neighbour(it.first.connectorDesc, it.first.name, it.second.name())
+            }
+            observer.onPredecessorUpdated(neighbours)
+        }
     }
 }
 

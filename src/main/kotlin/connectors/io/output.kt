@@ -4,7 +4,6 @@ import configuration.Config
 import connectors.*
 import functions.InputItem
 import functions.OutputFunction
-import javafx.scene.image.Image
 import job.JobConnectorData
 import java.io.*
 import java.nio.file.Files
@@ -18,8 +17,7 @@ interface ByteReaderGetter {
 }
 
 val localFileOutputConfigDescription = ConfigDescription(
-    ComposedType(
-        Fields.Builder()
+    ComposedType(Fields.Builder()
             .add("path", StringType())
             .build()
     )

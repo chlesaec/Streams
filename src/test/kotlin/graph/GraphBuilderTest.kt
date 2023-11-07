@@ -5,9 +5,14 @@ import org.junit.jupiter.api.Test
 
 internal class GraphBuilderTest {
 
+    class ObserverTest<T, U>: UpdateGraphObserver<T, U> {
+        override fun updatedPredecessors(current: T, nexts: List<Pair<T, U>>) {
+        }
+    }
+
     @Test
     fun testGraphBuilder() {
-        val builder = GraphBuilder<String, String>()
+        val builder = GraphBuilder<String, String>(ObserverTest())
         Assertions.assertTrue(builder.isEmpty())
         Assertions.assertTrue(builder.isConnected())
 

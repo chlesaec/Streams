@@ -7,6 +7,7 @@ import connectors.db.DBDescriptor
 import connectors.format.csv.CsvReaderDescriptor
 import connectors.io.LocalFileDescriptor
 import connectors.io.LocalFileOutputDescriptor
+import connectors.io.S3Descriptor
 import connectors.loader.JobLoader
 import connectors.loader.JobSaver
 import connectors.logRow.LogRowDescriptor
@@ -40,8 +41,6 @@ import kotlinx.serialization.json.JsonObject
 import runner.JobRunner
 import tornadofx.*
 import java.io.File
-import java.net.URL
-import java.net.URLClassLoader
 import java.util.*
 import kotlin.math.abs
 
@@ -486,7 +485,7 @@ class StudioView() : View("studio") {
     private var canvas: Canvas? = null
 
     init {
-        val builder = GraphBuilder<JobConnectorBuilder, JobLink>()
+        val builder = GraphBuilder<JobConnectorBuilder, JobLink>(JobGraphObserver)
         this.job = JobBuilder(builder)
     }
 
@@ -722,6 +721,7 @@ fun initConectors() {
     CsvReaderDescriptor
     DBDescriptor
     LogRowDescriptor
+    S3Descriptor
 }
 
 fun main(args: Array<String>) {

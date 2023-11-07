@@ -5,21 +5,17 @@ import configuration.Config
 import connectors.*
 import graph.GraphBuilder
 import graph.NodeBuilder
-import javafx.scene.image.Image
 import javafx.scene.paint.Color
 import job.*
 import kotlinx.serialization.json.*
-
-import java.io.File
-import java.lang.RuntimeException
 import java.net.URL
 import java.net.URLClassLoader
 import java.util.*
-import javax.json.JsonString
-import kotlin.collections.HashMap
 import kotlin.jvm.internal.Reflection
-import kotlin.reflect.*
-import kotlin.reflect.full.createType
+import kotlin.reflect.KClass
+import kotlin.reflect.KFunction
+import kotlin.reflect.KParameter
+import kotlin.reflect.cast
 
 
 class ClassReference(
@@ -101,7 +97,7 @@ class ConfigDescriptionExtractor() {
 
 class JobLoader {
     fun loadJob(jsonDesc: JsonObject): JobBuilder {
-        val graph = GraphBuilder<JobConnectorBuilder, JobLink>()
+        val graph = GraphBuilder<JobConnectorBuilder, JobLink>(JobGraphObserver)
         val connectors = jsonDesc["connectors"]
         if (connectors !is JsonArray) {
             throw RuntimeException("No connectors in job")

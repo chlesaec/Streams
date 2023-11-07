@@ -7,7 +7,6 @@ import connectors.generators.*
 import connectors.io.InputRecord
 import functions.InputItem
 import functions.OutputFunction
-import javafx.scene.image.Image
 import job.JobConnectorData
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
@@ -21,8 +20,7 @@ import kotlin.reflect.full.declaredFunctions
 
 
 val databaseConfigDescription = ConfigDescription(
-    ComposedType(
-        Fields.Builder()
+    ComposedType(Fields.Builder()
             .add("url", StringType())
             .add("username", StringType())
             .add("password", StringType())
