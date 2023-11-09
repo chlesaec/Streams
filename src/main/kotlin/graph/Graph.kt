@@ -45,6 +45,10 @@ class Graph<T, U> internal constructor(val nodes : Map<UUID, Node<T,U>>,
         return this.nodes.values.filter { !unstartedNode.contains(it.identifier) }
     }
 
+    fun endNodes(): List<Node<T, U>> {
+        return this.nodes.values.filter { it.nexts.isEmpty() }
+    }
+
     fun <T1, U1> map(functionNode : (T) -> T1, functionEdge : (U) -> U1) : Graph<T1, U1> {
         val newNodes = nodes.map {
             val node : Node<T1, U1>  = Node(functionNode(it.value.data), it.key)

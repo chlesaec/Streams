@@ -163,3 +163,33 @@ class BuilderFile<K : Comparable<K>, T>(private val file: NodeFile<K, T>) : Node
         return file.createNode(key, data())
     }
 }
+
+// some useful serializer
+object SerializerString : Serializer<String> {
+    override fun serialize(item: String): ByteArray {
+        return item.toByteArray()
+    }
+
+    override fun deserialize(data: ByteArray): String {
+        return String(data)
+    }
+}
+
+object SerializerInteger : Serializer<Int> {
+    override fun serialize(item: Int): ByteArray {
+        val data = ByteArray(Integer.BYTES)
+        for (i in 0 until Integer.BYTES) {
+            data[i] = (item ushr (Integer.BYTES - i - 1) * java.lang.Byte.SIZE and 0xFF).toByte()
+        }
+        return data
+    }
+
+    override fun deserialize(data: ByteArray): Int {
+        var value = 0
+        for (i in 0 until Integer.BYTES) {
+            val decal = (Integer.BYTES - i - 1) * java.lang.Byte.SIZE
+            value += (data[i].toInt() and 0xFF) shl decal
+        }
+        return Integer.valueOf(value)
+    }
+}

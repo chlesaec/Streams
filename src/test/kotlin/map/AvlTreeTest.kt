@@ -1,8 +1,6 @@
 package collections.map
 
-import collections.map.file.BuilderFile
-import collections.map.file.NodeFile
-import collections.map.file.Serializer
+import collections.map.file.*
 import collections.map.memory.BuilderMemo
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -41,7 +39,7 @@ class AvlTreeTest {
         fic.createNewFile()
         val rf = RandomAccessFile(fic, "rw")
 
-        val nodeFile: NodeFile<Int, String> = NodeFile(rf, SerializerInteger(), SerializerString())
+        val nodeFile: NodeFile<Int, String> = NodeFile(rf, SerializerInteger, SerializerString)
 
         // check build of avl tree
         val treeBuilder: AvlTreeBuilder<Int, String> = AvlTreeBuilder(BuilderFile(nodeFile))
@@ -69,7 +67,7 @@ class AvlTreeTest {
 
         // check reading existing file
         val rf2 = RandomAccessFile(fic, "rw")
-        val nodeFile2: NodeFile<Int, String> = NodeFile(rf2, SerializerInteger(), SerializerString())
+        val nodeFile2: NodeFile<Int, String> = NodeFile(rf2, SerializerInteger, SerializerString)
         val fileBuilder2: BuilderFile<Int, String> = BuilderFile(nodeFile2)
         val treeBuilder2: AvlTreeBuilder<Int, String> = AvlTreeBuilder(fileBuilder2)
         val tree2 = treeBuilder2.build()
@@ -80,31 +78,4 @@ class AvlTreeTest {
     }
 }
 
-internal class SerializerString : Serializer<String> {
-    override fun serialize(item: String): ByteArray {
-        return item.toByteArray()
-    }
 
-    override fun deserialize(data: ByteArray): String {
-        return String(data)
-    }
-}
-
-internal class SerializerInteger : Serializer<Int> {
-    override fun serialize(item: Int): ByteArray {
-        val data = ByteArray(Integer.BYTES)
-        for (i in 0 until Integer.BYTES) {
-            data[i] = (item ushr (Integer.BYTES - i - 1) * java.lang.Byte.SIZE and 0xFF).toByte()
-        }
-        return data
-    }
-
-    override fun deserialize(data: ByteArray): Int {
-        var value = 0
-        for (i in 0 until Integer.BYTES) {
-            val decal = (Integer.BYTES - i - 1) * java.lang.Byte.SIZE
-            value += (data[i].toInt() and 0xFF) shl decal
-        }
-        return Integer.valueOf(value)
-    }
-}

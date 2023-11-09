@@ -1,8 +1,8 @@
 package runner
 
-import commons.Coordinate
 import configuration.Config
 import connectors.*
+import connectors.processors.JoinDescriptor
 import functions.InputItem
 import functions.OutputFunction
 import graph.Graph
@@ -10,10 +10,13 @@ import graph.GraphBuilder
 import graph.UpdateGraphObserver
 import javafx.scene.paint.Color
 import job.*
-import org.junit.jupiter.api.Test
-
-import job.ComponentView
+import org.apache.commons.csv.CSVFormat
+import org.apache.commons.csv.CSVParser
+import org.apache.commons.csv.CSVRecord
 import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Test
+import java.io.StringReader
+import java.nio.file.Path
 
 internal class JobRunnerTest {
 
@@ -202,26 +205,56 @@ internal class JobRunnerTest {
         job.run(JobRunner())
     }
 
-    //@Test
-    fun testQueues() {
-        val desc1 = ConnectorDesc(
-            VersionedIdentifier("intGenerator", Version(listOf(1))),
-            LinkInput(arrayOf(Nothing::class)),
-            LinkOutput().add("*",  Int::class),
-            ConfigDescription(ComposedType(Fields.Builder().build())),
-            { findImage("icon1.png") }
-        ) { j: JobConnectorData,  c: Config -> IntGenerator(c) }
-
-        val conf = Config.Builder()
-            .add("start", "100")
-            .add("end", "200")
-            .add("step", "40")
+    @Test
+    fun testJoin() {
+        val graphJobBuilder: GraphBuilder<JobConnector, JobLink> = GraphBuilder(TestObserver)
+        val format = CSVFormat.Builder
+            .create()
+            .setHeader("f1", "f2", "f3")
             .build()
-        val view = ComponentView(Coordinate(2.0, 4.0));
-        val cdata = JobConnectorData(JobConfig(), desc1, "name", "id")
-        val c1 = JobConnector(cdata, conf)
+        val data = "a1,a2,a3\nb1,b2,b3\nc1,c2,c3"
+        val parser = CSVParser(StringReader(data), format)
 
+        val formatMain = CSVFormat.Builder.create()
+            .setHeader("m1", "f1")
+            .build()
+        val dataMain = "m1,a1\nm2,b1\nm3,c1"
+        val parserMain = CSVParser(StringReader(dataMain), formatMain)
+        csvLists = arrayOf(
+            parser.records,
+            parserMain.records
+        )
 
+        val jc = JobConfig()
+        jc.rootFolder = Path.of(
+            Thread.currentThread().contextClassLoader.getResource(".").toURI() )
+
+        val mainInput = JobConnectorData(jc, descriptorListGenerator, "main", "in1")
+        val mainConnector = JobConnector(mainInput, Config.Builder().add("role", "main").build())
+
+        val lookupInput = JobConnectorData(jc, descriptorListGenerator, "lookup", "in2")
+        val lookupConnector = JobConnector(lookupInput, Config.Builder().build())
+
+        val joinData = JobConnectorData(jc, JoinDescriptor, "join", "j1")
+        val joinCfg = Config.Builder().add("key", "f1").build()
+        val joinConnector = JobConnector(joinData, joinCfg)
+
+        val outputData = JobConnectorData(jc, descriptorCheckJoin, "out", "out")
+        val outConnector = JobConnector(outputData, Config.Builder().build())
+
+        val mainNode = graphJobBuilder.addNode(mainConnector)
+        val lookupNode = graphJobBuilder.addNode(lookupConnector)
+        val joinNode = graphJobBuilder.addNode(joinConnector)
+        val outNode = graphJobBuilder.addNode(outConnector)
+
+        val linkView = LinkView(Color.BLUE, 3.0)
+        mainNode.addNext(joinNode, JobLink(linkView, JobLinkData(NextFilter("*"), "*")))
+        lookupNode.addNext(joinNode, JobLink(linkView, JobLinkData(NextFilter("*"), "lookup")))
+        joinNode.addNext(outNode, JobLink(linkView, JobLinkData(NextFilter("*"), "*")))
+
+        val graphJob : Graph<JobConnector, JobLink> = graphJobBuilder.build()
+        val job = Job(graphJob)
+        job.run(JobRunner())
     }
 }
 
@@ -329,3 +362,56 @@ val descriptorSUM = ConnectorDesc(
     ConfigDescription(ComposedType(Fields.Builder().build())),
     { findImage("icon1.png") }
 ) { j: JobConnectorData, c: Config -> IntSUM(c) }
+
+
+var csvLists: Array<List<CSVRecord>>? = null
+
+
+class ListGenerator(config : Config) : Connector(config) {
+    override fun run(input: InputItem, output: OutputFunction) {
+        println("List generator")
+        val records = if (config.get("role") == "main") {
+            println("\trole 'main'")
+            csvLists?.get(1)
+        }
+        else {
+            println("\trole '${config.get("role") ?: "NULL"}'")
+            csvLists?.get(0)
+        }
+        if (records != null) {
+            records.forEach { output("main", it) }
+        }
+    }
+}
+
+val descriptorListGenerator = ConnectorDesc(
+    VersionedIdentifier("List", Version(listOf(1))),
+    LinkInput(arrayOf(Nothing::class)),
+    LinkOutput().add("*", CSVRecord::class),
+    ConfigDescription(ComposedType(Fields.Builder().build())),
+    { findImage("icon1.png") }
+) { j: JobConnectorData, c: Config -> ListGenerator(c) }
+
+class CheckJoin(config : Config) : Connector(config) {
+
+    val results = mutableListOf<Any>()
+
+    override fun run(input: InputItem, output: OutputFunction) {
+        val data = input.input
+        if (data != null) {
+            results.add(data)
+        }
+    }
+
+    override fun end() {
+        Assertions.assertEquals(3, results.size)
+    }
+}
+
+val descriptorCheckJoin = ConnectorDesc(
+    VersionedIdentifier("List", Version(listOf(1))),
+    LinkInput(arrayOf(CSVRecord::class)),
+    LinkOutput(),
+    ConfigDescription(ComposedType(Fields.Builder().build())),
+    { findImage("icon1.png") }
+) { j: JobConnectorData, c: Config -> CheckJoin(c) }
