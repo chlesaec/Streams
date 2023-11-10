@@ -47,7 +47,7 @@ internal class DBDescriptorTest {
         val jcd = JobConnectorData(jobCfg, DBDescriptor, "C1", "id1")
         val ld = JobLinkData(NextFilter("*"))
         val connector: Connector = DBDescriptor.build(jcd, config)
-        connector.initialize(config, jcd)
+        connector.initialize(jcd)
         connector.run(InputItem(jcd,ld, null)) { branch: String, item: Any? ->
             if (item != null) {
                 println(item.toString())

@@ -55,7 +55,7 @@ class DatabaseInputConnector(config : Config,
 
     private var objectBuilder : (ResultSet) -> Any? = { null }
 
-    override fun initialize(config: Config, j: JobConnectorData) {
+    override fun initialize(j: JobConnectorData) {
         val className = this.createClass(j, config)
 
         val classType: Class<*> = j.jobConfig.loadClass(className)

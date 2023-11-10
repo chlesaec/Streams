@@ -21,9 +21,8 @@ import java.io.RandomAccessFile
 val joinConfigDescription = ConfigDescription(
     ComposedType(
         Fields.Builder()
-            .add("root", StringType())
-            .add("pattern", StringType())
-            .add("subFolder", BooleanType())
+            .add("key", StringType())
+            .add("lookup", PredecessorType("lookup"))
             .build()
     )
 )
@@ -55,7 +54,6 @@ class JoinConnector(config : Config) : Connector(config) {
     val keyField = config.values["key"]
 
     override fun run(item: InputItem, output: OutputFunction) {
-        println("Run Join: input origin ${item.linkOrigin?.endName ?: "NULL"}")
         if (item.linkOrigin?.endName ?: "" == "lookup") {
             this.treatLookup(item)
         }
@@ -94,8 +92,8 @@ class JoinConnector(config : Config) : Connector(config) {
         return null
     }
 
-    override fun initialize(config: Config, jobData: JobConnectorData) {
-        super.initialize(config, jobData)
+    override fun initialize(jobData: JobConnectorData) {
+        super.initialize(jobData)
 
         val folder = File(jobData.jobConfig.rootFolder.toFile(), "join/${jobData.identifier}")
         if (folder.exists()) {

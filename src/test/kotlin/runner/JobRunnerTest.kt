@@ -3,6 +3,7 @@ package runner
 import configuration.Config
 import connectors.*
 import connectors.processors.JoinDescriptor
+import connectors.processors.JoinedRecord
 import functions.InputItem
 import functions.OutputFunction
 import graph.Graph
@@ -405,6 +406,17 @@ class CheckJoin(config : Config) : Connector(config) {
 
     override fun end() {
         Assertions.assertEquals(3, results.size)
+        val record1 = results[0]
+        Assertions.assertTrue(record1 is JoinedRecord)
+        val j1 = record1 as JoinedRecord
+        Assertions.assertTrue(j1.main is CSVRecord)
+        Assertions.assertTrue(j1.joined is CSVRecord)
+
+        val csvMain1 = j1.main as CSVRecord
+        val csvJoin1 = j1.joined as CSVRecord
+
+        Assertions.assertEquals("m1", csvMain1[0])
+        Assertions.assertEquals("a1", csvJoin1[0])
     }
 }
 

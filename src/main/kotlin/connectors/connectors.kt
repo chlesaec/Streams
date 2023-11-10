@@ -83,7 +83,7 @@ class LinkOutput() {
         prec: KClass<out Any>,
         succ: KClass<out Any>
     ): Boolean {
-        println("Prec ${prec.simpleName} is sub class of ${succ.simpleName} ${prec.isSubclassOf(succ)}")
+        //println("Prec ${prec.simpleName} is sub class of ${succ.simpleName} ${prec.isSubclassOf(succ)}")
         return prec.isSubclassOf(succ)
     }
 }
@@ -221,15 +221,16 @@ class ComboType(val choices: List<String>) : SimpleType() {
     }
 }
 
-class PredecessorType(val choicesGetter: () -> List<String>) : SimpleType() {
+class PredecessorType(val selectName: String) : SimpleType() {
     override fun valid(value: String): Boolean {
-        val choices = this.choicesGetter()
+        /*val choices = this.choicesGetter()
         var res = choices.contains(value)
         if (!res) {
             val index = this.tryInt(value)
             res = index >= 0 && index < choices.size
         }
-        return res
+        return res*/
+        return true
     }
 
     private fun tryInt(value: String) : Int {
@@ -360,7 +361,7 @@ abstract class Connector(
     val config: Config
 ) : FunctionConsumer {
 
-    open fun initialize(config: Config, j: JobConnectorData) {}
+    open fun initialize(j: JobConnectorData) {}
 
     open fun inputPriority() : List<String> = emptyList()
 

@@ -48,7 +48,7 @@ class JobConnectorData(val jobConfig: JobConfig,
                        val identifier: String) {
     fun buildConnector(config : Config) : Connector {
         val cnx = this.connectorDesc.build(this, config)
-        cnx.initialize(config, this)
+        cnx.initialize(this)
         return cnx
     }
 }
@@ -75,7 +75,7 @@ class NextFilter(val names : Array<String>) {
 }
 
 class JobLinkData(val filter: NextFilter,
-    val endName: String = "*") {
+    var endName: String = "*") {
     fun name() : String {
         return this.filter.names.joinToString(", ")
     }

@@ -11,10 +11,12 @@ import connectors.io.S3Descriptor
 import connectors.loader.JobLoader
 import connectors.loader.JobSaver
 import connectors.logRow.LogRowDescriptor
+import connectors.processors.JoinDescriptor
 import functions.InputItem
 import functions.OutputFunction
 import graph.GraphBuilder
 import graph.NodeBuilder
+import javafx.beans.value.ObservableValue
 import javafx.collections.FXCollections
 import javafx.collections.ObservableList
 import javafx.event.ActionEvent
@@ -388,6 +390,18 @@ class LinkBuilder(
     }
 }
 
+class PredecessorView(
+    val connector: JobConnectorBuilder,
+    val link: JobLinkData) {
+
+    constructor(pred: Pair<JobNodeBuilder, JobEdgeBuilder>) :
+            this(pred.first.data, pred.second.data.data)
+
+    override fun toString(): String {
+        return "${connector.name} - ${link.name()}"
+    }
+}
+
 class ConfigView(
     private val connectorBuilder : JobConnectorBuilder,
     private val description: FieldType) {
@@ -419,6 +433,28 @@ class ConfigView(
             is EmptyType -> {
                 HBox()
             }
+            is PredecessorType -> {
+                val cb = ComboBox<PredecessorView>()
+                if (node != null) {
+                    node.findPredecessors()
+                        .map { PredecessorView(it) }
+                        .forEach(cb.items::add)
+                }
+                val changeListener = ChangeListener { observable,
+                                                      oldValue: PredecessorView?,
+                                                      newValue: PredecessorView? ->
+                    if (oldValue != null) {
+                      oldValue.link.endName = "*"
+                    }
+                    if (newValue != null) {
+                        newValue.link.endName = description.selectName
+                        config.add(name, newValue.connector.identifier)
+                    }
+
+                }
+                cb.selectionModel.selectedItemProperty().addListener(changeListener)
+                HBox(Label(name), cb)
+            }
             is SimpleType -> {
                 var value = config.get(name)
                 if (value == null) {
@@ -426,10 +462,18 @@ class ConfigView(
                     config.add(name, "")
                 }
                 val textField = TextField(value)
-                textField.onKeyTyped = EventHandler {
-                    evt : KeyEvent ->
-                    config.add(name, textField.text)
+                val onChange = ChangeListener<String>{
+                        observable,
+                        oldValue: String?,
+                        newValue: String? ->
+                    if (newValue == null) {
+                        config.add(name, "")
+                    }
+                    else {
+                        config.add(name, newValue)
+                    }
                 }
+                textField.textProperty().addListener(onChange)
                 HBox(Label(name), textField)
             }
             is ComposedType ->
@@ -450,26 +494,7 @@ class ConfigView(
                 ))
                 box
             }
-            is PredecessorType -> {
-                // TODO
-                val pred = ListView<String>();
-                pred.selectionModel.selectionMode = SelectionMode.SINGLE
-                if (node != null) {
-                    pred.items = FXCollections.observableArrayList(node.findPredecessors()
-                        .map { it.first.data.name });
-                }
-                var value = config.get(name)
-                if (value == null) {
-                    value = ""
-                    config.add(name, "")
-                }
-                val textField = TextField(value)
-                textField.onKeyTyped = EventHandler {
-                        evt : KeyEvent ->
-                    config.add(name, textField.text)
-                }
-                HBox(Label(name), textField)
-            }
+
         }
         return valueNode
     }
@@ -722,6 +747,7 @@ fun initConectors() {
     DBDescriptor
     LogRowDescriptor
     S3Descriptor
+    JoinDescriptor
 }
 
 fun main(args: Array<String>) {

@@ -22,7 +22,7 @@ object CsvReaderDescriptor :
         LinkInput(arrayOf(InputRecord::class)),
         LinkOutput().add("main", CSVRecord::class),
         csvConfigDescription,
-        { findImage("csv.png") },
+        { findImage("csv_old.png") },
         { j: JobConnectorData, c : Config -> CSVReaderConnector(c) }
     )
 {
