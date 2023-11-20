@@ -2,6 +2,7 @@ package connectors.format.csv
 
 import configuration.Config
 import connectors.*
+import connectors.generators.Generated
 import connectors.io.InputRecord
 import functions.InputItem
 import functions.OutputFunction
@@ -22,7 +23,7 @@ object CsvReaderDescriptor :
         LinkInput(arrayOf(InputRecord::class)),
         LinkOutput().add("main", CSVRecord::class),
         csvConfigDescription,
-        { findImage("csv_old.png") },
+        findImage("csv.png"),
         { j: JobConnectorData, c : Config -> CSVReaderConnector(c) }
     )
 {
@@ -39,5 +40,34 @@ class CSVReaderConnector(config : Config) : Connector(config) {
                     .forEach { output("main", it) }
             }
         }
+        else if (item.input != null && item.input::class.java.isAnnotationPresent(Generated::class.java)) {
+            val csvLine = item.input.javaClass.fields
+                .map { it.get(item.input) }
+                .map { if (it == null) "" else it.toString() }
+                .reduce { acc: String,
+                          s: Any? ->
+                    if (s == null) {
+                        "${acc},"
+                    }
+                    else {
+                        "${acc},${s}"
+                    }
+                }
+            output("main", csvLine)
+        }
+    }
+}
+
+fun CSVRecord.header() : String {
+    return this.parser.headerNames.reduce { acc: String,
+                                             s: String ->
+        "${acc},${s}"
+    }
+}
+
+fun CSVRecord.line() : String {
+    return this.reduce { acc: String,
+                   s: String ->
+        "${acc},${s}"
     }
 }

@@ -64,6 +64,7 @@ class Graph<T, U> internal constructor(val nodes : Map<UUID, Node<T,U>>,
     }
 }
 
+@FunctionalInterface
 interface UpdateGraphObserver<T, U> {
     fun updatedPredecessors(current: T, nexts: List<Pair<T, U>>) : Unit
 }
@@ -161,7 +162,7 @@ class GraphBuilder<T, U>(val observer: UpdateGraphObserver<T, U>) {
         val currentNodes = ArrayDeque<NodeBuilder<T, U>>(5)
         currentNodes.add(this.nodeBuilders[0])
         visitedNode.add(this.nodeBuilders[0].identifier)
-        while (!currentNodes.isEmpty()) {
+        while (currentNodes.isNotEmpty()) {
             val workingNode = currentNodes.removeFirst()
             workingNode.nexts
                 .map( EdgeBuilder<T, U>::next )

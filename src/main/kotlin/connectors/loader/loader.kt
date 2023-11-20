@@ -5,7 +5,6 @@ import configuration.Config
 import connectors.*
 import graph.GraphBuilder
 import graph.NodeBuilder
-import javafx.scene.paint.Color
 import job.*
 import kotlinx.serialization.json.*
 import java.net.URL
@@ -30,7 +29,7 @@ class ClassReference(
     private fun findWithConfig(constructor: KFunction<Connector>): Boolean {
         return if (constructor.parameters.size == 1) {
             val parameter: KParameter = constructor.parameters[0]
-            Config::class.equals(parameter.type.classifier)
+            Config::class == parameter.type.classifier
         } else {
             false
         }
@@ -136,7 +135,7 @@ class JobLoader {
                             .map(JsonPrimitive::class::cast)
                             .map(JsonPrimitive::content)
                             .toTypedArray()
-                    connectorFrom.addNext(connectorTo, JobLink(LinkView(Color.BLACK, 3.0),
+                    connectorFrom.addNext(connectorTo, JobLink(LinkView(),
                         JobLinkData(NextFilter(content))))
                 }
             }

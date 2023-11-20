@@ -8,14 +8,13 @@ import collections.map.file.SerializerString
 import configuration.Config
 import connectors.*
 import connectors.commons.ItemManager
-import connectors.io.InputRecord
+import connectors.format.csv.line
 import functions.InputItem
 import functions.OutputFunction
 import job.JobConnectorData
-import org.apache.commons.csv.CSVFormat
 import org.apache.commons.csv.CSVRecord
 import java.io.File
-import java.io.InputStreamReader
+import java.io.OutputStream
 import java.io.RandomAccessFile
 
 val joinConfigDescription = ConfigDescription(
@@ -33,7 +32,7 @@ object JoinDescriptor:
             LinkInput(arrayOf(CSVRecord::class)),
             LinkOutput().add("main", CSVRecord::class),
             joinConfigDescription,
-            { findImage("join.png") },
+            findImage("join.png"),
             { j: JobConnectorData, c : Config -> JoinConnector(c) }
         )
 {
@@ -42,7 +41,16 @@ object JoinDescriptor:
     }
 }
 
-class JoinedRecord(val main: Any, val joined: Any)
+class JoinedRecord(val main: Any, val joined: Any) {
+
+    val lineSep = System.lineSeparator()
+
+    fun write(out: OutputStream) {
+        if (main is CSVRecord && joined is CSVRecord) {
+            out.write("${main.line()},${joined.line()}${lineSep}".toByteArray())
+        }
+    }
+}
 
 
 class JoinConnector(config : Config) : Connector(config) {

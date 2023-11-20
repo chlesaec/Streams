@@ -16,7 +16,8 @@ import functions.InputItem
 import functions.OutputFunction
 import graph.GraphBuilder
 import graph.NodeBuilder
-import javafx.beans.value.ObservableValue
+import javafx.beans.property.SimpleBooleanProperty
+import javafx.beans.value.ChangeListener
 import javafx.collections.FXCollections
 import javafx.collections.ObservableList
 import javafx.event.ActionEvent
@@ -25,6 +26,7 @@ import javafx.scene.Scene
 import javafx.scene.canvas.Canvas
 import javafx.scene.canvas.GraphicsContext
 import javafx.scene.control.*
+import javafx.scene.image.Image
 import javafx.scene.input.KeyEvent
 import javafx.scene.input.MouseEvent
 import javafx.scene.layout.*
@@ -62,8 +64,9 @@ class GraphicEvent(private val g : GraphicsContext) {
 class ComponentDraw(val g : GraphicsContext) {
 
     fun show(connector : JobConnectorBuilder) {
-        //this.view.position, this.connectorDesc.icon()
-        val icon = connector.connectorDesc.icon()
+        val icon = connector.connectorDesc.iconURL.openStream().use {
+            Image(it)
+        }
         val position = connector.view.position
         this.g.drawImage(
             icon, position.x, position.y,
@@ -97,6 +100,32 @@ class ArrowView() {
     }
 }
 
+fun ConnectorDesc.icon(): Image {
+    return this.iconURL.openStream().use {
+        Image(it)
+    }
+}
+
+fun ConnectorDesc.dimension(): Coordinate {
+    val icon = this.icon()
+    return Coordinate(icon.width, icon.height)
+}
+
+fun LinkView.color(): Color {
+    return Color(this.color.r.toDouble(), this.color.g.toDouble(), this.color.b.toDouble(), 1.0)
+}
+
+fun JobConnectorBuilder.center() : Coordinate {
+    val dim = this.connectorDesc.dimension()
+    return this.view.center(dim)
+}
+
+fun JobConnectorBuilder.inside(c : Coordinate) : Boolean {
+    val size = this.connectorDesc.dimension()
+    return this.view.position.x < c.x && this.view.position.x + size.x.toInt() > c.x
+            && this.view.position.y < c.y && this.view.position.y + size.y.toInt() > c.y
+}
+
 class LinkUI(val g : GraphicsContext,
              val ge: GraphicEvent,
              val link : JobLink,
@@ -104,7 +133,7 @@ class LinkUI(val g : GraphicsContext,
              val endGetter: () -> Coordinate) : LinkDrawer {
 
     override fun draw() {
-        g.stroke = link.view.color
+        g.stroke = link.view.color()
         g.lineWidth = link.view.width
         val start = startGetter()
         val end = endGetter()
@@ -247,7 +276,9 @@ class NewLinkDragger(
     init {
         this.canvas.addEventFilter(MouseEvent.MOUSE_DRAGGED, this.dm)
         this.canvas.addEventFilter(MouseEvent.MOUSE_RELEASED, this.ed)
-        val img = nodeBuilder.data.connectorDesc.icon()
+        val img = nodeBuilder.data.connectorDesc.iconURL.openStream().use {
+            Image(it)
+        }
         val size = Coordinate(img.width, img.height)
         this.startPosition = nodeBuilder.data.view.center(size)
         this.draw(this.startPosition)
@@ -500,14 +531,79 @@ class ConfigView(
     }
 }
 
-class StudioView() : View("studio") {
+typealias SaveOperation = (ActionEvent)-> File?
+
+class MenuJobSaver(val load: SaveOperation,
+               val saveAs: SaveOperation,
+               val saveDirect: (File) -> Unit) {
+    private var currentJobFile: File? = null
+
+    private val isPresent = SimpleBooleanProperty(false)
+
+
+    fun build(mb: MenuBar) : Menu {
+
+        return mb.menu("File") {
+            item("Load").setOnAction {
+                this@MenuJobSaver.changeFile(this@MenuJobSaver.load(it))
+            }
+
+            val directSave = item("Save")
+            directSave.enableWhen {
+                this@MenuJobSaver.isPresent
+            }
+            directSave.setOnAction {
+                val jobFile = this@MenuJobSaver.currentJobFile
+                if (jobFile != null) {
+                    this@MenuJobSaver.saveDirect(jobFile)
+                }
+            }
+            item("Save as").setOnAction{
+                this@MenuJobSaver.changeFile(this@MenuJobSaver.saveAs(it))
+            }
+        }
+    }
+
+    private fun changeFile(newFile: File?) {
+        this.currentJobFile = newFile
+        this.isPresent.set(newFile != null)
+    }
+
+}
+
+class JavafxGraphics(val g : GraphicsContext): Graphics {
+    override fun startSelectConnector() {
+        g.lineWidth = 3.0
+        g.stroke = Color.YELLOW
+    }
+
+    override fun startSelectLink() {
+        //val start = selectedLink.first.data.center()
+        //val end = selectedLink.second.next.data.center()
+        g.lineWidth = 7.0
+        g.stroke = Color.YELLOW
+        //g.strokeLine(start.x, start.y, end.x, end.y)
+    }
+
+    override fun drawLine(from: Coordinate, to: Coordinate) {
+        g.strokeLine(from.x, from.y, to.x, to.y)
+    }
+}
+
+class StudioView : View("ETL studio") {
     private var jobView : JobView? = null
     private var configView : ConfigView? = null
     private var selectedConnector : JobConnectorBuilder? = null
     private var selectedEdge : Pair<JobNodeBuilder, JobEdgeBuilder>? = null
     private var job : JobBuilder
 
+    private var connectorContextMenu: ContextMenu? = null
+
+    private var linkContextMenu: ContextMenu? = null
+
     private var canvas: Canvas? = null
+
+    private val saver = MenuJobSaver(this::loadJob, this::saveJob, this::saveDirect)
 
     init {
         val builder = GraphBuilder<JobConnectorBuilder, JobLink>(JobGraphObserver)
@@ -532,26 +628,13 @@ class StudioView() : View("studio") {
         this.getJobView(g).show()
         val cnx = this.selectedConnector
 
+        val view = ConnectorView(JavafxGraphics(g))
         if (cnx is JobConnectorBuilder) {
-
-            val img = cnx.connectorDesc.icon()
-            val size = Coordinate(img.width, img.height)
-            val center = cnx.view.center(size)
-            g.lineWidth = 3.0
-            g.stroke = Color.YELLOW
-
-            g.strokeLine(center.x - (size/2.0).x, center.y - (size/2.0).y, center.x + (size/2.0).x, center.y - (size/2.0).y)
-            g.strokeLine(center.x - (size/2.0).x, center.y + (size/2.0).y, center.x + (size/2.0).x, center.y + (size/2.0).y)
-            g.strokeLine(center.x + (size/2.0).x, center.y - (size/2.0).y, center.x + (size/2.0).x, center.y + (size/2.0).y)
-            g.strokeLine(center.x - (size/2.0).x, center.y - (size/2.0).y, center.x - (size/2.0).x, center.y + (size/2.0).y)
+            view.drawSelectedConnector(cnx)
         }
         val selectedLink = this.selectedEdge
         if (selectedLink is Pair<JobNodeBuilder, JobEdgeBuilder>) {
-            val start = selectedLink.first.data.center()
-            val end = selectedLink.second.next.data.center()
-            g.lineWidth = 7.0
-            g.stroke = Color.YELLOW
-            g.strokeLine(start.x, start.y, end.x, end.y)
+            view.drawSelectedLink(selectedLink.first.data, selectedLink.second.next.data)
         }
     }
 
@@ -563,10 +646,7 @@ class StudioView() : View("studio") {
     override val root = borderpane {
         top = hbox {
             menubar {
-                menu("File") {
-                    item("Load").setOnAction(this@StudioView::loadJob)
-                    item("Save").setOnAction(this@StudioView::saveJob)
-                }
+                this@StudioView.saver.build(this)
                 menu("Connectors") {
                     item("Load").setOnAction {
                         val res = this@borderpane.center
@@ -594,7 +674,7 @@ class StudioView() : View("studio") {
             this@StudioView.canvas = this
             this@StudioView.draw()
 
-            this.addEventFilter(MouseEvent.MOUSE_PRESSED, this@StudioView::startDrag)
+            this.addEventFilter(MouseEvent.MOUSE_PRESSED, this@StudioView::onMouseClickEvent)
         }
         right = this@StudioView.configView?.buildNode() ?: HBox(Label("Empty"))
         right.minWidth(120.0)
@@ -625,7 +705,7 @@ class StudioView() : View("studio") {
         }
     }
 
-    private fun loadJob(evt : ActionEvent) {
+    private fun loadJob(evt : ActionEvent): File? {
         println("Load Job")
 
         val chooser = FileChooser()
@@ -644,11 +724,10 @@ class StudioView() : View("studio") {
                 this.draw()
             }
         }
+        return loadFile
     }
 
-    private fun saveJob(evt : ActionEvent) {
-        println("Save Job")
-        val jsonJob = JobSaver().saveJob(this.job)
+    private fun saveJob(evt : ActionEvent): File? {
         val chooser = FileChooser()
         chooser.title = "Save current job"
         chooser.extensionFilters.add(FileChooser.ExtensionFilter("json", "json"))
@@ -657,16 +736,22 @@ class StudioView() : View("studio") {
         val savedFile : File? = chooser.showSaveDialog(this.currentWindow)
 
         if (savedFile is File) {
-            val result = jsonJob.toString()
-            savedFile.writeText(result)
+            this.saveDirect(savedFile)
         }
 
-        println("name ${savedFile?.name}")
+        return savedFile
     }
 
-    private fun startDrag(evt: MouseEvent) {
+    private fun saveDirect(out: File) {
+        val jsonJob = JobSaver().saveJob(this.job)
+        val result = jsonJob.toString()
+        out.writeText(result)
+    }
+
+    private fun onMouseClickEvent(evt: MouseEvent) {
         val center = root.center
         if (center is Canvas) {
+            this.reinitCtxMenu()
             val pointEvt = Coordinate(evt.x, evt.y)
             val comp : JobNodeBuilder? = this.getJobView(center.graphicsContext2D).searchComponent(pointEvt)
             if (comp is JobNodeBuilder) {
@@ -674,54 +759,114 @@ class StudioView() : View("studio") {
                 this.configView = ConfigView(connector, connector.connectorDesc.config.description)
                 root.right = this.configView?.buildNode(comp)
                 this.selectedConnector = connector
+                this.selectedEdge = null
                 this.draw()
                 if (evt.button.ordinal == 1) {
                     NodeDragger(center, connector.view, this::draw)
                 }
                 else {
-                    val item = MenuItem("New Link")
-                    val filter = FilterChoices(this.primaryStage)
-                    val selectFunction = { list: Array<String> ->
-                        val selection = mutableListOf<String>()
-                        filter.show(list,selection)
-                        selection.toTypedArray()
+                    this.linkContextMenu?.hide()
+                    this.linkContextMenu = null
+                    val menu = connectorContextMenu
+                    if (menu != null) {
+                        menu.hide()
+                        this.connectorContextMenu = null
                     }
-                    val lb = LinkBuilder(this.job, comp, selectFunction) { JobLink(LinkView(Color.BLACK, 3.0), JobLinkData(NextFilter(it))) }
-                    item.setOnAction { e : ActionEvent -> NewLinkDragger(center, comp, this::draw, lb::newLink) }
+                    else {
+                        val rename = MenuItem("Rename")
+                        rename.setOnAction { e: ActionEvent ->
+                            val dialog = TextInputDialog(connector.name)
+                            dialog.headerText = "Enter new name"
+                            dialog.contentText = "Rename"
 
-                    val deleteItem = MenuItem("delete")
-                    deleteItem.setOnAction { e : ActionEvent ->
-                        this.job.graph.removeNode(comp.identifier)
-                        this.selectedConnector = null
-                        this.draw()
+                            dialog.x = evt.x + evt.screenX
+                            dialog.y = evt.y + evt.screenY
+
+                            val result: Optional<String> = dialog.showAndWait()
+                            if (result.isPresent) {
+                                connector.name = result.get()
+                                this.draw()
+                            }
+                            e.consume()
+                        }
+
+                        val newLink = MenuItem("New Link")
+                        newLink.setOnAction { e: ActionEvent ->
+                            val filter = FilterChoices(this.primaryStage)
+                            val selectFunction = { list: Array<String> ->
+                                val selection = mutableListOf<String>()
+                                filter.show(list, selection)
+                                selection.toTypedArray()
+                            }
+                            val lb = LinkBuilder(this.job, comp, selectFunction) {
+                                JobLink(
+                                    LinkView(),
+                                    JobLinkData(NextFilter(it))
+                                )
+                            }
+                            NewLinkDragger(center, comp, this::draw, lb::newLink)
+                        }
+
+                        val deleteItem = MenuItem("delete")
+                        deleteItem.setOnAction { e: ActionEvent ->
+                            this.job.graph.removeNode(comp.identifier)
+                            this.selectedConnector = null
+                            this.selectedEdge = null
+                            e.consume()
+                            this.draw()
+                        }
+
+                        val menu = ContextMenu(rename, newLink, deleteItem)
+                        this.connectorContextMenu = menu
+                        menu.show(center, evt.screenX, evt.screenY)
                     }
-
-                    val menu = ContextMenu(item, deleteItem)
-                    menu.show(center, evt.screenX, evt.screenY)
                 }
             }
             else {
                 val edge : Pair<JobNodeBuilder, JobEdgeBuilder>? = this.getJobView(center.graphicsContext2D).searchLink(pointEvt)
                 this.selectedConnector = null
                 this.selectedEdge = edge
-                this.draw()
-                val currentEdge = this.selectedEdge
-                if (currentEdge is Pair<JobNodeBuilder, JobEdgeBuilder>) {
-                    if (evt.button.ordinal > 1) {
-                        val deleteItem = MenuItem("delete")
-                        deleteItem.setOnAction { e : ActionEvent ->
-                            this.job.graph.removeEdge(currentEdge.first, currentEdge.second)
-                            this.selectedEdge = null
-                            this.draw()
-                        }
 
-                        val menu = ContextMenu(deleteItem)
-                        menu.show(center, evt.screenX, evt.screenY)
+                if (edge is Pair<JobNodeBuilder, JobEdgeBuilder>) {
+                    this.draw()
+                    if (evt.button.ordinal > 1) {
+
+                        val ctxMenu = this.linkContextMenu
+                        if (ctxMenu != null) {
+                            ctxMenu.hide()
+                            this.linkContextMenu = null
+                        }
+                        else {
+                            val deleteItem = MenuItem("delete")
+                            deleteItem.setOnAction { e: ActionEvent ->
+                                this.job.graph.removeEdge(edge.first, edge.second)
+                                this.selectedEdge = null
+                                this.draw()
+                                e.consume()
+                            }
+
+                            val menu = ContextMenu(deleteItem)
+                            this.linkContextMenu = menu
+                            menu.show(center, evt.screenX, evt.screenY)
+                        }
                     }
+                }
+                else if (evt.button.ordinal != 1 && this.connectorContextMenu != null) {
+                    this.connectorContextMenu?.hide()
+                    this.connectorContextMenu = null
+                    this.draw()
                 }
             }
         }
         evt.consume()
+    }
+
+    private fun reinitCtxMenu() {
+        this.linkContextMenu?.hide()
+        this.linkContextMenu = null
+
+        this.connectorContextMenu?.hide()
+        this.connectorContextMenu = null
     }
 }
 
@@ -737,6 +882,7 @@ class Studio: App(StudioView::class) {
 
 class VoidConnector(config : Config) : Connector(config) {
     override fun run(input: InputItem, output: OutputFunction) {
+        // Do nothing.
     }
 }
 

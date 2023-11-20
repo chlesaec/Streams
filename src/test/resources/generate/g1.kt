@@ -1,7 +1,7 @@
 package connectors.db.generated;
 
-data class C1(val s1 : String) {
+data class Class1(val s1 : String) {
     companion object Builder {
-        fun create(): C1 = C1("Hello")
+        fun create(): Class1 = Class1("Hello")
     }
 }

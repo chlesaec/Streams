@@ -9,7 +9,6 @@ import functions.OutputFunction
 import graph.Graph
 import graph.GraphBuilder
 import graph.UpdateGraphObserver
-import javafx.scene.paint.Color
 import job.*
 import org.apache.commons.csv.CSVFormat
 import org.apache.commons.csv.CSVParser
@@ -61,9 +60,9 @@ internal class JobRunnerTest {
         val c3 = JobConnector(cdata3, Config.Builder().build())
         val node3 = graphJobBuilder.addNode(c3)
 
-        nodeInput1.addNext(nodeIncr, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
-        nodeInput2.addNext(nodeIncr, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
-        nodeIncr.addNext(node3, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
+        nodeInput1.addNext(nodeIncr, JobLink(LinkView(Color(0,0,255), 3.0), JobLinkData(NextFilter("*"))))
+        nodeInput2.addNext(nodeIncr, JobLink(LinkView(Color(0,0,255), 3.0), JobLinkData(NextFilter("*"))))
+        nodeIncr.addNext(node3, JobLink(LinkView(Color(0,0,255), 3.0), JobLinkData(NextFilter("*"))))
 
        // nodeInput1.addNext(nodeDouble, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
        // nodeDouble.addNext(node3, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
@@ -90,7 +89,7 @@ internal class JobRunnerTest {
         val c2 = JobConnector(cdata2, Config.Builder().build())
         val nodeOut = graphJobBuilder.addNode(c2)
 
-        nodeIn.addNext(nodeOut, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
+        nodeIn.addNext(nodeOut, JobLink(LinkView(Color(0,0,255), 3.0), JobLinkData(NextFilter("*"))))
 
         val graphJob : Graph<JobConnector, JobLink> = graphJobBuilder.build()
         val job = Job(graphJob)
@@ -123,8 +122,8 @@ internal class JobRunnerTest {
         val c2 = JobConnector(cdata2, Config.Builder().build())
         val nodeOut = graphJobBuilder.addNode(c2)
 
-        nodeIn2.addNext(nodeOut, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
-        nodeIn.addNext(nodeOut, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
+        nodeIn2.addNext(nodeOut, JobLink(LinkView(Color(0,0,255), 3.0), JobLinkData(NextFilter("*"))))
+        nodeIn.addNext(nodeOut, JobLink(LinkView(Color(0,0,255), 3.0), JobLinkData(NextFilter("*"))))
 
         val graphJob : Graph<JobConnector, JobLink> = graphJobBuilder.build()
         val job = Job(graphJob)
@@ -161,10 +160,10 @@ internal class JobRunnerTest {
         val c2 = JobConnector(cdata2, Config.Builder().build())
         val nodeOut = graphJobBuilder.addNode(c2)
 
-        nodeIn2.addNext(nodeDouble, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
-        nodeIn.addNext(nodeDouble, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
+        nodeIn2.addNext(nodeDouble, JobLink(LinkView(Color(0,0,255), 3.0), JobLinkData(NextFilter("*"))))
+        nodeIn.addNext(nodeDouble, JobLink(LinkView(Color(0,0,255), 3.0), JobLinkData(NextFilter("*"))))
 
-        nodeDouble.addNext(nodeOut, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
+        nodeDouble.addNext(nodeOut, JobLink(LinkView(Color(0,0,255), 3.0), JobLinkData(NextFilter("*"))))
 
         val graphJob : Graph<JobConnector, JobLink> = graphJobBuilder.build()
         val job = Job(graphJob)
@@ -195,11 +194,11 @@ internal class JobRunnerTest {
         val connectorOut = JobConnector(output, Config.Builder().build())
         val nodeOut = graphJobBuilder.addNode(connectorOut)
 
-        nodeIn.addNext(nodeDouble1, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
-        nodeIn.addNext(nodeDouble2, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
+        nodeIn.addNext(nodeDouble1, JobLink(LinkView(Color(0,0,255), 3.0), JobLinkData(NextFilter("*"))))
+        nodeIn.addNext(nodeDouble2, JobLink(LinkView(Color(0,0,255), 3.0), JobLinkData(NextFilter("*"))))
 
-        nodeDouble1.addNext(nodeOut, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
-        nodeDouble2.addNext(nodeOut, JobLink(LinkView(Color.BLUE, 3.0), JobLinkData(NextFilter("*"))))
+        nodeDouble1.addNext(nodeOut, JobLink(LinkView(Color(0,0,255), 3.0), JobLinkData(NextFilter("*"))))
+        nodeDouble2.addNext(nodeOut, JobLink(LinkView(Color(0,0,255), 3.0), JobLinkData(NextFilter("*"))))
 
         val graphJob : Graph<JobConnector, JobLink> = graphJobBuilder.build()
         val job = Job(graphJob)
@@ -248,7 +247,7 @@ internal class JobRunnerTest {
         val joinNode = graphJobBuilder.addNode(joinConnector)
         val outNode = graphJobBuilder.addNode(outConnector)
 
-        val linkView = LinkView(Color.BLUE, 3.0)
+        val linkView = LinkView(Color(0,0,255), 3.0)
         mainNode.addNext(joinNode, JobLink(linkView, JobLinkData(NextFilter("*"), "*")))
         lookupNode.addNext(joinNode, JobLink(linkView, JobLinkData(NextFilter("*"), "lookup")))
         joinNode.addNext(outNode, JobLink(linkView, JobLinkData(NextFilter("*"), "*")))
@@ -264,7 +263,7 @@ val descritorIntGenerator = ConnectorDesc(
     LinkInput(arrayOf(Nothing::class)),
     LinkOutput().add("*",  Int::class),
     ConfigDescription(ComposedType(Fields.Builder().build())),
-    { findImage("icon1.png") }
+    findImage("icon1.png")
 ) { j: JobConnectorData,  c: Config -> IntGenerator(c) }
 
 class IntGenerator(config : Config) : Connector(config) {
@@ -309,7 +308,7 @@ val descriptionInc = ConnectorDesc(
     LinkInput(arrayOf(Int::class)),
     LinkOutput().add("*",  Int::class),
     ConfigDescription(ComposedType(Fields.Builder().build())),
-    { findImage("icon1.png") }
+    findImage("icon1.png")
 ) { j: JobConnectorData, c: Config -> IntInc(c) }
 
 class IntDouble(config : Config) : Connector(config) {
@@ -335,7 +334,7 @@ val descriptionDoubleProcessor = ConnectorDesc(
     LinkInput(arrayOf(Int::class)),
     LinkOutput().add("*",  Int::class),
     ConfigDescription(ComposedType(Fields.Builder().build())),
-    { findImage("icon1.png") }
+    findImage("icon1.png")
 ) { j: JobConnectorData, c: Config -> IntDouble(c) }
 
 class IntSUM(config : Config) : Connector(config) {
@@ -361,7 +360,7 @@ val descriptorSUM = ConnectorDesc(
     LinkInput(arrayOf(Int::class)),
     LinkOutput(),
     ConfigDescription(ComposedType(Fields.Builder().build())),
-    { findImage("icon1.png") }
+    findImage("icon1.png")
 ) { j: JobConnectorData, c: Config -> IntSUM(c) }
 
 
@@ -390,7 +389,7 @@ val descriptorListGenerator = ConnectorDesc(
     LinkInput(arrayOf(Nothing::class)),
     LinkOutput().add("*", CSVRecord::class),
     ConfigDescription(ComposedType(Fields.Builder().build())),
-    { findImage("icon1.png") }
+    findImage("icon1.png")
 ) { j: JobConnectorData, c: Config -> ListGenerator(c) }
 
 class CheckJoin(config : Config) : Connector(config) {
@@ -425,5 +424,5 @@ val descriptorCheckJoin = ConnectorDesc(
     LinkInput(arrayOf(CSVRecord::class)),
     LinkOutput(),
     ConfigDescription(ComposedType(Fields.Builder().build())),
-    { findImage("icon1.png") }
+    findImage("icon1.png")
 ) { j: JobConnectorData, c: Config -> CheckJoin(c) }

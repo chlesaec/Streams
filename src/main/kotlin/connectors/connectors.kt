@@ -3,7 +3,6 @@ package connectors
 import configuration.Config
 import connectors.db.SimpleKotlinCompilerMessageCollector
 import functions.FunctionConsumer
-import javafx.scene.image.Image
 import job.JobConnectorData
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -41,11 +40,9 @@ class LinkInput(val linkTypes: Array<KClass<out Any>>) {
     fun canSucceed(precClazz: LinkOutput): Array<String> {
         return this.linkTypes.map {
             val ret = this.canSucceedClass(it, precClazz)
-            println("Succeed before reduce : ${ret.size}")
             ret
         }
             .reduce { l: Array<String>, r: Array<String> ->
-                println("redure : ${l.size}")
                 Array(l.size + r.size) {
                     if (it < l.size) {
                         l[it]
@@ -290,12 +287,13 @@ data class VersionedIdentifier(
     val version: Version
 )
 
-fun findImage(name: String): Image {
+fun findImage(name: String): URL {
     val resource = Thread.currentThread().contextClassLoader.getResource(name)
         ?: Thread.currentThread().contextClassLoader.getResource("./" + name)
-    resource.openStream().use {
+    return resource
+    /*resource.openStream().use {
         return Image(it)
-    }
+    }*/
 }
 
 open class ConnectorDesc(
@@ -303,7 +301,7 @@ open class ConnectorDesc(
     val intput: LinkInput,
     val output: LinkOutput,
     val config: ConfigDescription,
-    val icon: () -> Image,
+    val iconURL: URL,
     val builder: (JobConnectorData, Config) -> Connector
 ) {
     fun build(j: JobConnectorData, c: Config): Connector {

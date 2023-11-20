@@ -35,7 +35,7 @@ object DBDescriptor :
         LinkInput(arrayOf()),
         LinkOutput().add("main", InputRecord::class),
         databaseConfigDescription,
-        { findImage("iconFiles.png") },
+        findImage("iconFiles.png"),
         { j: JobConnectorData, c : Config -> DatabaseInputConnector(c, j) })
 {
     init {
@@ -160,10 +160,10 @@ class DatabaseInputConnector(config : Config,
     }
 
     private fun linesForResult(m : MethodGenerator, p : Parameter, index : Int) {
-        if (p.type.equals("String")) {
+        if (p.type == "String") {
             m.addLine("val ${p.name} : String? = result.getString(${index})")
         }
-        else if (p.type.equals("Int")) {
+        else if (p.type == "Int") {
             m.addLine("val ${p.name}Tmp = result.getInt(${index})")
             m.addLine("val ${p.name} : Int?")
             m.addLine("if (result.wasNull()) {");

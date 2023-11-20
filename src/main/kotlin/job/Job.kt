@@ -7,8 +7,6 @@ import connectors.ConnectorDesc
 import connectors.JobConfig
 import connectors.Neighbour
 import graph.*
-import javafx.scene.image.Image
-import javafx.scene.paint.Color
 import runner.Runner
 
 
@@ -24,10 +22,11 @@ interface LinkDrawer {
     fun updateCounter()
 }
 
+data class Color(val r: Int, val g: Int, val b: Int)
 
 
-class LinkView(var color : Color,
-               var width : Double) {
+class LinkView(var color : Color = Color(0, 0, 0),
+               var width : Double = 3.0) {
     var drawer : LinkDrawer? = null
 
     var count : Long = 0
@@ -94,7 +93,7 @@ class JobLink(val view : LinkView, val data: JobLinkData) {
 /**
  * Define a connector builder for job.
  */
-class JobConnectorBuilder(val name : String,
+class JobConnectorBuilder(var name : String,
                           val identifier : String,
                           val connectorDesc: ConnectorDesc,
                           var config : Config.Builder,
@@ -104,22 +103,6 @@ class JobConnectorBuilder(val name : String,
         return JobConnector(connectorData, this.config.build())
     }
 
-    fun center() : Coordinate {
-        val icon = this.connectorDesc.icon()
-        return this.view.center(Coordinate(icon.width, icon.height))
-    }
-
-    fun inside(c : Coordinate) : Boolean {
-        val icon : Image = this.connectorDesc.icon()
-        val size = Coordinate(icon.width, icon.height)
-        return this.view.position.x < c.x && this.view.position.x + size.x.toInt() > c.x
-                && this.view.position.y < c.y && this.view.position.y + size.y.toInt() > c.y
-    }
-
-
-    fun show(graphicFunction : (Coordinate, Image) -> Unit) {
-        graphicFunction(this.view.position, this.connectorDesc.icon())
-    }
 }
 
 object JobGraphObserver: UpdateGraphObserver<JobConnectorBuilder, JobLink> {

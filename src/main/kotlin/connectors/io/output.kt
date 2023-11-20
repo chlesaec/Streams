@@ -2,6 +2,8 @@ package connectors.io
 
 import configuration.Config
 import connectors.*
+import connectors.format.csv.header
+import connectors.format.csv.line
 import functions.InputItem
 import functions.OutputFunction
 import job.JobConnectorData
@@ -28,7 +30,7 @@ object LocalFileOutputDescriptor :
         LinkInput(arrayOf(ByteReader::class, InputRecord::class, CSVRecord::class)),
         LinkOutput(),
         localFileOutputConfigDescription,
-        { findImage("icon1.png") },
+        findImage("fileOut.png"),
         { j: JobConnectorData, c : Config -> LocalFileOutputConnector(c) }
     ) {
     init {
@@ -69,19 +71,12 @@ class LocalFileOutputConnector(config : Config) : Connector(config) {
         else if (input is CSVRecord) {
             val out = this.getOutputStream()
             if (counter == 0) {
-                val title = input.parser.headerNames.reduce { acc: String,
-                                                              s: String ->
-                    "${acc},${s}"
-                }
-                out.write(title.toByteArray())
+                out.write(input.header().toByteArray())
                 out.write(System.lineSeparator().toByteArray())
             }
             this.counter++
-            val data = input.reduce { acc: String,
-                                      s: String ->
-                "${acc},${s}"
-            }
-            out.write(data.toByteArray())
+
+            out.write(input.line().toByteArray())
             out.write(System.lineSeparator().toByteArray())
             if (counter >= 40) {
                 out.flush()

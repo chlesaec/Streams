@@ -79,7 +79,7 @@ class ConnectorRunner(
             while (!isTerminated()) {
 
                 this@ConnectorRunner.inputQueues?.forEach { queueOrigin: String, element: InputItem ->
-                    if (!(element.input is EndRunner)) {
+                    if (element.input !is EndRunner) {
                         connector.run(element) { branch: String, generatedElement: Any? ->
                             this@ConnectorRunner.sendNext(generatedElement)
                         }

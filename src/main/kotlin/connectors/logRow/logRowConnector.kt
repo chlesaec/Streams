@@ -22,7 +22,7 @@ object LogRowDescriptor :
         LinkInput(arrayOf(Any::class)),
         LinkOutput(),
         LogConfigDescription,
-        { findImage("iconFiles.png") },
+        findImage("iconFiles.png"),
         { j: JobConnectorData, c : Config -> LogRowConnector(c) })
 {
     init {

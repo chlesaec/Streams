@@ -18,6 +18,7 @@ class SourceFileGenerator(val packageName: String,
         FileOutputStream(f).use {
             out: FileOutputStream ->
             out.write("package ${this.packageName}${System.lineSeparator()}${System.lineSeparator()}".toByteArray())
+            out.write("import connectors.generators.Generated${System.lineSeparator()}".toByteArray())
             this.classes.forEach { it.generateCode(out) }
         }
         return f
@@ -32,6 +33,11 @@ class SourceFileGenerator(val packageName: String,
     }
 }
 
+@Target(AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class Generated
+
+
 class ClassGenerator(val name: String) {
 
     private val fields = mutableListOf<Parameter>()
@@ -41,6 +47,7 @@ class ClassGenerator(val name: String) {
     var builder: CompanionBuilderGenerator? = null
 
     fun generateCode(out: OutputStream) {
+        out.write("@Generated${System.lineSeparator()}".toByteArray())
         out.write("data class ${this.name}(".toByteArray())
 
         fields.forEachIndexed { index: Int, classField: Parameter ->

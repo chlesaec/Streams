@@ -41,7 +41,7 @@ object LocalFileDescriptor :
             LinkOutput().add("main", InputRecord::class)
                 .add("error", RowError::class),
             localFileConfigDescription,
-            { findImage("iconFiles.png") },
+            findImage("iconFiles.png"),
             { j: JobConnectorData,  c : Config -> LocalFileConnector(c) })
          {
             init {
@@ -118,7 +118,7 @@ object S3Descriptor :
         LinkOutput().add("main", InputRecord::class)
             .add("error", RowError::class),
         S3ConfigDescription,
-        { findImage("iconS3.png") },
+        findImage("iconS3.png"),
         { j: JobConnectorData,  c : Config -> S3Input(c) })
 {
     init {
