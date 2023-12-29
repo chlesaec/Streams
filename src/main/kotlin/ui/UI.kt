@@ -3,6 +3,7 @@ package ui
 import commons.Coordinate
 import configuration.Config
 import connectors.*
+import connectors.custom.CustomDescriptor
 import connectors.db.DBDescriptor
 import connectors.format.csv.CsvReaderDescriptor
 import connectors.io.LocalFileDescriptor
@@ -45,8 +46,8 @@ import kotlinx.serialization.json.JsonObject
 import runner.JobRunner
 import tornadofx.*
 import java.io.File
+import java.io.InputStream
 import java.util.*
-import kotlin.math.abs
 
 
 class GraphicEvent(private val g : GraphicsContext) {
@@ -59,26 +60,6 @@ class GraphicEvent(private val g : GraphicsContext) {
             }
         }
     }
-}
-
-class ComponentDraw(val g : GraphicsContext) {
-
-    fun show(connector : JobConnectorBuilder) {
-        val icon = connector.connectorDesc.iconURL.openStream().use {
-            Image(it)
-        }
-        val position = connector.view.position
-        this.g.drawImage(
-            icon, position.x, position.y,
-            icon.width, icon.height
-        )
-        this.g.fill = Color.BLACK
-        this.g.font = Font.font("Verdana", 14.0)
-        this.g.fillText("${connector.name}\n(${connector.connectorDesc.identifier.name})",
-            position.x,
-            position.y - 10.0)
-    }
-
 }
 
 class ArrowView() {
@@ -126,76 +107,42 @@ fun JobConnectorBuilder.inside(c : Coordinate) : Boolean {
             && this.view.position.y < c.y && this.view.position.y + size.y.toInt() > c.y
 }
 
-class LinkUI(val g : GraphicsContext,
-             val ge: GraphicEvent,
+class LinkUI(val gr : ConnectorView,
              val link : JobLink,
              val startGetter : () -> Coordinate,
              val endGetter: () -> Coordinate) : LinkDrawer {
 
     override fun draw() {
-        g.stroke = link.view.color()
-        g.lineWidth = link.view.width
         val start = startGetter()
         val end = endGetter()
-        val middlePoint = (start + end) / 2.0
 
-        val base = (end - start).unit() * 11.0
-        val arrowPoint = middlePoint + base
-        val basePoint = middlePoint - base
-        val ortho = (arrowPoint - basePoint).ortho()
-
-        val firstPoint = basePoint + (ortho * 11.0)
-        val secondPoint = basePoint - (ortho * 11.0)
-        g.strokeLine(start.x, start.y, end.x, end.y)
-        g.strokeLine(firstPoint.x, firstPoint.y, arrowPoint.x, arrowPoint.y)
-        g.strokeLine(secondPoint.x, secondPoint.y, arrowPoint.x, arrowPoint.y)
-
-        this.g.fill = Color.BLACK
-        this.g.font = Font.font("Verdana", 11.0)
-
-        val position = (start * 8.0 + end * 2.0) / 10.0
-        val unitVector = (end - start).unit()
-        this.g.fillText("${link.name()}",
-            position.x + 10.0 * unitVector.y,
-            position.y - 10.0 * abs(unitVector.x))
-        this.g.restore()
+        gr.drawLink(start, end, link)
+        gr.g.restore()
     }
 
     override fun updateCounter() {
         println("start update counter")
         this.link.view.count++
         val middlePoint = (startGetter() + endGetter()) / 2.0
-        ge.run {
-            this.g.fill = Color.WHITE
-            this.g.fillRect(middlePoint.x - 5,
-                middlePoint.y - 10,
-                15.0,
-                15.0
-            )
-            this.g.fill = Color.BLACK
-            this.g.font = Font.font("Verdana", 8.0)
-            this.g.fillText(
-                 this.link.view.count.toString(),
-                 middlePoint.x,
-                 middlePoint.y
-            )
-        }
-
+        this.gr.g.showCounter(this.link.view.count, middlePoint)
         println("end update counter")
     }
 }
 
 class JobView(val jobBuilder: () -> JobBuilder,
-            val g: GraphicsContext) {
-    val ge = GraphicEvent(this.g)
+            val cnxView: ConnectorView) {
+    //val ge = GraphicEvent(this.g)
+
+    //private val gr = JavafxGraphics(g)
+    //private val cnxView = ConnectorView(gr) // FIXME
+
     fun show() {
         val builder: JobBuilder = this.jobBuilder()
         builder.graph.edges().forEach {
             this.showLink(it.second.data, it)
         }
         builder.graph.nodes().forEach {
-            val draw = ComponentDraw(g)
-            draw.show(it)
+            cnxView.showConnector(it)
         }
     }
 
@@ -205,7 +152,7 @@ class JobView(val jobBuilder: () -> JobBuilder,
         if (view.view.drawer == null) {
             val start = { edge.first.data.center() }
             val end = { edge.second.next.data.center() }
-            view.view.drawer = LinkUI(g, this.ge, view, start, end)
+            view.view.drawer = LinkUI(cnxView, view, start, end)
         }
         val vd = view.view.drawer
         if (vd is LinkDrawer) {
@@ -572,21 +519,72 @@ class MenuJobSaver(val load: SaveOperation,
 }
 
 class JavafxGraphics(val g : GraphicsContext): Graphics {
+
+    private val graphicsEvent = GraphicEvent(this.g)
+
     override fun startSelectConnector() {
         g.lineWidth = 3.0
         g.stroke = Color.YELLOW
     }
 
     override fun startSelectLink() {
-        //val start = selectedLink.first.data.center()
-        //val end = selectedLink.second.next.data.center()
         g.lineWidth = 7.0
         g.stroke = Color.YELLOW
-        //g.strokeLine(start.x, start.y, end.x, end.y)
     }
 
     override fun drawLine(from: Coordinate, to: Coordinate) {
         g.strokeLine(from.x, from.y, to.x, to.y)
+    }
+
+    override fun showImage(getter: () -> InputStream, position: Coordinate) {
+        val icon = getter().use {
+            Image(it)
+        }
+        this.g.drawImage(
+            icon, position.x, position.y,
+            icon.width, icon.height
+        )
+    }
+
+    override fun startConnector() {
+        this.g.fill = Color.BLACK
+        this.g.font = Font.font("Verdana", 14.0)
+    }
+
+    override fun write(text: String, position: Coordinate) {
+        this.g.fillText(text,
+            position.x,
+            position.y)
+    }
+
+    override fun startLink(link: JobLink) {
+        g.stroke = link.view.color()
+        g.lineWidth = link.view.width
+
+        this.g.fill = Color.BLACK
+        this.g.font = Font.font("Verdana", 11.0)
+    }
+
+    override fun restore() {
+        this.g.restore()
+    }
+
+    override fun showCounter(counter: Long, position: Coordinate) {
+        this.graphicsEvent.run {
+            this.g.fill = Color.WHITE
+            this.g.fillRect(position.x - 5,
+                position.y - 10,
+                15.0,
+                15.0
+            )
+            this.g.fill = Color.BLACK
+            this.g.font = Font.font("Verdana", 8.0)
+            this.g.fillText(
+                counter.toString(),
+                position.x,
+                position.y
+            )
+        }
     }
 }
 
@@ -606,13 +604,13 @@ class StudioView : View("ETL studio") {
     private val saver = MenuJobSaver(this::loadJob, this::saveJob, this::saveDirect)
 
     init {
-        val builder = GraphBuilder<JobConnectorBuilder, JobLink>(JobGraphObserver)
+        val builder = GraphBuilder(JobGraphObserver)
         this.job = JobBuilder(builder)
     }
 
-    private fun getJobView(g : GraphicsContext) : JobView {
+    private fun getJobView(cnxView : ConnectorView) : JobView {
         if (this.jobView == null) {
-            this.jobView = JobView(this::job, g)
+            this.jobView = JobView(this::job, cnxView)
         }
         return this.jobView!!
     }
@@ -625,10 +623,10 @@ class StudioView : View("ETL studio") {
         val g : GraphicsContext = c.graphicsContext2D
         g.clearRect(0.0, 0.0, c.width, c.height)
 
-        this.getJobView(g).show()
+        val view = ConnectorView(JavafxGraphics(g))
+        this.getJobView(view).show()
         val cnx = this.selectedConnector
 
-        val view = ConnectorView(JavafxGraphics(g))
         if (cnx is JobConnectorBuilder) {
             view.drawSelectedConnector(cnx)
         }
@@ -753,7 +751,8 @@ class StudioView : View("ETL studio") {
         if (center is Canvas) {
             this.reinitCtxMenu()
             val pointEvt = Coordinate(evt.x, evt.y)
-            val comp : JobNodeBuilder? = this.getJobView(center.graphicsContext2D).searchComponent(pointEvt)
+            val view = ConnectorView(JavafxGraphics(center.graphicsContext2D))
+            val comp : JobNodeBuilder? = this.getJobView(view).searchComponent(pointEvt)
             if (comp is JobNodeBuilder) {
                 val connector = comp.data
                 this.configView = ConfigView(connector, connector.connectorDesc.config.description)
@@ -823,7 +822,8 @@ class StudioView : View("ETL studio") {
                 }
             }
             else {
-                val edge : Pair<JobNodeBuilder, JobEdgeBuilder>? = this.getJobView(center.graphicsContext2D).searchLink(pointEvt)
+                val view = ConnectorView(JavafxGraphics(center.graphicsContext2D))
+                val edge : Pair<JobNodeBuilder, JobEdgeBuilder>? = this.getJobView(view).searchLink(pointEvt)
                 this.selectedConnector = null
                 this.selectedEdge = edge
 
@@ -894,6 +894,7 @@ fun initConectors() {
     LogRowDescriptor
     S3Descriptor
     JoinDescriptor
+    CustomDescriptor
 }
 
 fun main(args: Array<String>) {
